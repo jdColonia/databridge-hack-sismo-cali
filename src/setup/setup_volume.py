@@ -51,5 +51,5 @@ else:
     print(
         "AVISO: Datosprediales.json aún NO está en el volumen.\n"
         "Súbelo con `bash scripts/upload_data.sh` (o desde Catalog > Volumes > Upload) "
-        "antes de correr el notebook bronze/bronze_predios."
+        "antes de correr el notebook bronze/bronze_hackathon_buildings."
     )

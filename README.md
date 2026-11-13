@@ -8,32 +8,37 @@ El sismo fue de magnitud 7,4 con epicentro en el Chocó ([USGS `us6000tjl2`](htt
 
 ## Arquitectura (medallion)
 
-Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equipo`. El job `el_equipo_medallion` las construye en orden.
+Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equipo` y siguen la convención de [`docs/conventions.md`](docs/conventions.md) (identificadores en inglés, textos en español). El detalle de cada tabla y columna está en [`docs/data_dictionary.md`](docs/data_dictionary.md). El job `el_equipo_medallion` las construye en orden.
 
-| Capa   | Tabla                                              | Qué hace                                                                                                                                                                      |
-| ------ | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Setup  | volumen `el_equipo`                                | Guarda crudo (`Datosprediales.json`), externos (`externos/`) y exportes (`export/`)                                                                                           |
-| Bronze | `bronze_el_equipo_predios`                         | Una fila por feature, 20 propiedades + `geometry` (texto GeoJSON), tal cual llega (21 columnas)                                                                               |
-| Silver | `silver_el_equipo_predios`                         | Limpieza (trim, vacíos a null), llaves de barrio/manzana, pisos válidos, reparación de geometría, área/perímetro en EPSG:9377, centroide lon/lat, estado y nivel de daño, WKT |
-| Silver | `silver_el_equipo_equipamientos_osm`               | Hospitales/clínicas, colegios y bomberos de OpenStreetMap (Overpass) en el bbox de los predios                                                                                |
-| Silver | `silver_el_equipo_predios_distancia_equipamientos` | Distancia en metros de cada predio al hospital, colegio y estación de bomberos más cercanos                                                                                   |
-| Gold   | `gold_el_equipo_mapa_edificios`                    | Edificios con color, estado, área, flag de polígono dudoso, distancias (si existen) y WKT                                                                                     |
-| Gold   | `gold_el_equipo_resumen_comuna`                    | Conteos, área construida y `pct_edificios_dano`, `pct_area_dano`, `pct_area_sin_datos` por comuna                                                                             |
-| Gold   | `gold_el_equipo_resumen_barrio`                    | Lo mismo por `comuna_barrio_id`                                                                                                                                               |
-| Export | `export/gold_el_equipo_mapa_edificios.geojson`     | GeoJSON EPSG:4326 para Kepler.gl / QGIS                                                                                                                                       |
+| Capa   | Tabla                                                  | Qué hace                                                                                                                                                                      |
+| ------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup  | volumen `el_equipo`                                    | Guarda crudo (`Datosprediales.json`), externos (`externos/`) y exportes (`export/`)                                                                                           |
+| Bronze | `bronze_el_equipo_hackathon_buildings`                 | Una fila por feature, 20 propiedades + `geometry` (texto GeoJSON), tal cual llega con sus nombres originales y sin metadatos (21 columnas)                                    |
+| Bronze | `bronze_el_equipo_idesc_communes`, `_idesc_neighborhoods`, `_idesc_cadastre_parcels`, `_idesc_cadastre_neighborhoods` | Capas oficiales del IDESC tal cual (22 comunas, 342 barrios DIVIPOLA 2026, catastro de los edificios, nombres catastrales de barrio), con `_source_url` y `_queried_at` |
+| Bronze | `bronze_el_equipo_manual_code_catalog`                 | Tabla de códigos catastrales curada a mano (`reference/codigos_catastrales.csv`), con `_source_url` y `_queried_at`                                                           |
+| Silver | `silver_el_equipo_communes`, `_neighborhoods`          | 22 comunas y 342 barrios oficiales DIVIPOLA 2026 (`neighborhood_code` `CCBB`, comuna, categoría, acuerdo y geometría WKT)                                                      |
+| Silver | `silver_el_equipo_cadastre_parcels`, `_cadastre_neighborhoods`, `_code_catalog` | Catastro de los edificios, nombre catastral por código de barrio (auxiliar) y significado de los códigos catastrales                                                        |
+| Silver | `silver_el_equipo_buildings`                           | Una fila por edificio: limpieza (trim, vacíos a null), códigos catastrales, pisos válidos, reparación de geometría, área/perímetro en EPSG:9377, centroide, estado y nivel de daño, WKT, comuna y barrio **oficiales por ubicación** y datos del catastro (`national_parcel_number`, `land_use`, `cadastre_floor_count`, `address`) |
+| Silver | `silver_el_equipo_neighborhood_crosswalk`              | Código catastral del dataset → barrio oficial por ubicación, con `is_same_code` y `building_count`                                                                            |
+| Silver | `silver_el_equipo_osm_facilities`                      | Hospitales/clínicas, colegios y bomberos de OpenStreetMap (Overpass) en el bbox de los edificios                                                                              |
+| Silver | `silver_el_equipo_building_facility_distances`         | Distancia en metros de cada edificio al hospital, colegio y estación de bomberos más cercanos                                                                                 |
+| Gold   | `gold_el_equipo_map_buildings`                         | Edificios con color, estado, área, bandera de polígono dudoso, distancias (si existen) y WKT                                                                                  |
+| Gold   | `gold_el_equipo_commune_summary`                       | Conteos, área construida y `damaged_building_pct`, `damaged_area_pct`, `no_data_area_pct` por comuna oficial                                                                  |
+| Gold   | `gold_el_equipo_neighborhood_summary`                  | Lo mismo por barrio oficial                                                                                                                                                   |
+| Export | `export/gold_el_equipo_map_buildings.geojson`          | GeoJSON EPSG:4326 para Kepler.gl / QGIS                                                                                                                                       |
 
 Los notebooks están en `src/`, una carpeta por capa (formato fuente `.py`), y el job en `resources/el_equipo_medallion.job.yml` (serverless, sin clusters):
 
 ```
 src/
-├── setup/    setup_volumen.py
-├── bronze/   bronze_predios.py              (+ un notebook por fuente externa)
-├── silver/   silver_predios.py, silver_datos_adicionales.py
-├── gold/     gold_mapa_y_resumen.py         (luego: dim_*.py, fact_*.py, vista del mapa)
+├── setup/    setup_volume.py
+├── bronze/   bronze_hackathon_buildings.py, bronze_idesc_references.py   (+ un notebook por fuente externa)
+├── silver/   silver_references.py, silver_buildings.py, silver_neighborhood_crosswalk.py, silver_osm_facilities.py
+├── gold/     gold_map_and_summaries.py      (luego: dim_*.py, fact_*.py, vista del mapa)
 └── export/   export_geojson.py
 ```
 
-Los nombres no llevan números: el orden lo define el job con `depends_on`. Para agregar un notebook, créalo en la carpeta de su capa y agrega su tarea en el job.
+Los nombres no llevan números: el orden lo define el job con `depends_on`. Para agregar un notebook, créalo en la carpeta de su capa y agrega su tarea en el job. Todo identificador nuevo sigue [`docs/conventions.md`](docs/conventions.md).
 
 ## Requisitos
 
@@ -47,8 +52,35 @@ Los nombres no llevan números: el orden lo define el job con `depends_on`. Para
 | Paso | Estado |
 | ---- | ------ |
 | Volumen `workspace.default.el_equipo` con `Datosprediales.json` | Listo |
-| `workspace.default.bronze_el_equipo_predios` (5.146 filas × 21 columnas) | Listo |
-| Silver, gold y export | Pendiente |
+| `workspace.default.bronze_el_equipo_hackathon_buildings` (5.146 filas × 21 columnas) | Listo |
+| Referencias oficiales en el volumen (`/Volumes/workspace/default/el_equipo/externos/referencias/`) | Listo |
+| `bronze_idesc_references`, `silver_references`, `silver_buildings` y `silver_neighborhood_crosswalk` | Probados en `dev`; pendiente correrlos en `team` |
+| Silver (resto), gold y export | Pendiente |
+
+## Referencias oficiales de códigos
+
+El dataset trae códigos sin significado (COMUNA, BARRIO, ID_PREDIO, TIPO_AVALU, COND...). Se traducen con fuentes oficiales abiertas:
+
+| Fuente | Capa | Uso |
+| ------ | ---- | --- |
+| IDESC (Alcaldía de Cali), comunas | `dapm:pdt_dpa_comunas` | Nombre de comuna |
+| IDESC, barrios y sectores DIVIPOLA (Acuerdo 0636 de 2026) | `dapm:pdt_dpa_barrios_sectores` | Nombre y polígono del barrio |
+| IDESC, catastro de terrenos | `catastro:cat_bas_terrenos` | Nombre catastral de barrio, `national_parcel_number`, uso, pisos, área construida, dirección |
+| DANE DIVIPOLA / IGAC (Número Predial Nacional) | `reference/codigos_catastrales.csv` | Significado de DEPAPRED, MUNIPRED, TIPO_AVALU, SECTOR y COND (`verification_status` `verified` / `pending_verification`) |
+
+**Barrio y comuna oficiales** (`neighborhood_code`, `neighborhood_name`, `commune_code`, `commune_name` en `silver_el_equipo_buildings`): salen del cruce espacial del centroide con los polígonos DIVIPOLA 2026, que ubica a los 5.146 edificios. Son las columnas para el mapa, los textos y las agregaciones. El código de barrio siempre tiene formato `CCBB` (4 dígitos, sin guion).
+
+**Código catastral:** el dataset usa códigos catastrales de COMUNA+BARRIO (`cadastral_neighborhood_code`), que el Acuerdo 0636 de 2026 cambió u omitió en algunos barrios. `cadastral_neighborhood_name` es el nombre por código catastral (DIVIPOLA si el código existe, si no el del catastro) e `is_neighborhood_code_current` dice si coincide con el oficial. Los 441 edificios cuyo código catastral no coincide son el mismo barrio recodificado en 2026 (ej. `1994` "Pampalinda" → "Pampa Linda"); la traducción completa está en `silver_el_equipo_neighborhood_crosswalk`.
+
+**Catastro** (`cadastre_match_method`): se une por `parcel_id` válido y, si no, por `connection_code` solo cuando es unívoco (`connection`); si hay varias unidades queda `ambiguous_connection` y sin coincidencia `no_match`.
+
+Resultados en `dev`: código catastral vigente 4.703 de 5.144 con código (91,4 %), 2 edificios sin código catastral; catastro por `parcel_id` 1.907 (37 %), por `connection` 2.690 (52 %), `ambiguous_connection` 382 (7 %), `no_match` 167 (3 %).
+
+**Descargar y subir** (la descarga es local; el GeoServer del IDESC responde 403 a ciertos filtros por GET, el script usa POST):
+```bash
+uv run --no-project --with requests python -I scripts/download_referencias.py
+DATABRICKS_CONFIG_PROFILE=el-equipo bash scripts/upload_referencias.sh
+```
 
 ## Cómo funciona el bundle
 
@@ -57,20 +89,22 @@ Un *Databricks Asset Bundle* describe en archivos de texto lo que debe existir e
 | Archivo | Qué define |
 | ------- | ---------- |
 | `databricks.yml` | Nombre del bundle, **variables** (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y **targets** (`dev`, `team`) |
-| `resources/el_equipo_medallion.job.yml` | El job: 6 tareas en cadena, cada una corre un notebook con las variables como parámetros |
-| `src/<capa>/*.py` | Los notebooks. Arman los nombres de tabla con los parámetros (`{catalog}.{schema}.bronze_{team}_predios`), nunca escritos a mano |
-| `scripts/upload_data.sh` | Ayuda para subir el crudo al volumen (no es parte del bundle) |
+| `resources/el_equipo_medallion.job.yml` | El job: 9 tareas encadenadas, cada una corre un notebook con las variables como parámetros |
+| `src/<capa>/*.py` | Los notebooks. Arman los nombres de tabla con los parámetros (`{catalog}.{schema}.bronze_{team}_hackathon_buildings`), nunca escritos a mano |
+| `scripts/upload_data.sh`, `scripts/download_referencias.py`, `scripts/upload_referencias.sh` | Ayudas para subir el crudo y descargar/subir las referencias oficiales (no son parte del bundle) |
 
 El job corre en **serverless** (no declara clusters) y ejecuta en orden:
 
 ```
-setup_volumen → bronze_predios → silver_predios → silver_datos_adicionales → gold_mapa_y_resumen → export_geojson
+setup_volume ─┬→ bronze_hackathon_buildings ──────────────┐
+              └→ bronze_idesc_references → silver_references ┴→ silver_buildings ─┬→ silver_neighborhood_crosswalk ─┐
+                                                                                  └→ silver_osm_facilities ─────────┴→ gold_map_and_summaries → export_geojson
 ```
 
 **`deploy` vs `run`:**
 
 - `databricks bundle deploy` sube el código a `/Workspace/Users/<tu_usuario>/.bundle/databridge_hack_el_equipo/<target>/` y crea o actualiza el job. **No toca datos.** Respeta `.gitignore`, así que `data/` nunca se sube. Guarda un registro de lo desplegado, por eso la siguiente vez actualiza el job en lugar de duplicarlo.
-- `databricks bundle run` ejecuta el job y es lo que crea las tablas. Para correr solo algunas tareas: `--only silver_predios,gold_mapa_y_resumen`.
+- `databricks bundle run` ejecuta el job y es lo que crea las tablas. Para correr solo algunas tareas: `--only silver_buildings,gold_map_and_summaries`.
 
 > **Importante:** si editas un notebook directamente en la interfaz de Databricks, ese cambio no está en Git y el siguiente `deploy` lo sobrescribe. Edita en el repositorio y despliega; si pruebas algo en la interfaz, cópialo después al `.py`.
 
@@ -87,7 +121,7 @@ El crudo `Datosprediales.json` vive en el volumen compartido `workspace.default.
 
 **Una sola vez (el dueño del workspace):**
 1. Invitar a los integrantes: Settings → Identity and access → Users → Add user.
-2. Crear el volumen compartido y subir el crudo: correr una vez el job (la tarea `setup_volumen` crea el volumen) o en SQL `CREATE VOLUME IF NOT EXISTS workspace.default.el_equipo`, y luego:
+2. Crear el volumen compartido y subir el crudo: correr una vez el job (la tarea `setup_volume` crea el volumen) o en SQL `CREATE VOLUME IF NOT EXISTS workspace.default.el_equipo`, y luego:
    ```bash
    DATABRICKS_CONFIG_PROFILE=el-equipo bash scripts/upload_data.sh
    ```
@@ -140,10 +174,10 @@ Todo PR que cambie tablas o columnas actualiza también su `.dbml`.
 
 ## Llevar el mapa a Kepler.gl / QGIS
 
-1. Corre el job completo (genera `export/gold_el_equipo_mapa_edificios.geojson`).
+1. Corre el job completo (genera `export/gold_el_equipo_map_buildings.geojson`).
 2. En Databricks: Catalog > `workspace` > `default` > Volumes > `el_equipo` > `export` > descargar el `.geojson`.
-3. **Kepler.gl** (kepler.gl/demo): arrastra el archivo; en Fill Color elige `estado_codigo` (o usa `color_hex`) y en Filters `poligono_dudoso = false` si quieres excluir dudosos.
-4. **QGIS:** Capa > Añadir capa vectorial; simboliza por categorías con `estado_codigo` (EPSG:4326).
+3. **Kepler.gl** (kepler.gl/demo): arrastra el archivo; en Fill Color elige `structural_status_code` (o usa `color_hex`) y en Filters `is_suspect_polygon = false` si quieres excluir dudosos.
+4. **QGIS:** Capa > Añadir capa vectorial; simboliza por categorías con `structural_status_code` (EPSG:4326).
 
 ## Entregables del viernes
 
@@ -162,6 +196,6 @@ Correo antes de las 5:00 p. m. del viernes 13, asunto `databridgehack: El Equipo
 - El estado estructural es una **inferencia satelital**, no una inspección en terreno.
 - **"Sin cambio aparente" no equivale a "sin daño"**: el satélite no ve daño interno ni fisuras. La propia etiqueta lo menciona ("Daño interno").
 - 435 edificios no tienen datos satelitales: se reportan aparte y se excluyen del denominador de los porcentajes, pero la cobertura debe leerse siempre junto al porcentaje.
-- El número de pisos es incompleto (`NPISOS = 0` en 1.234 predios); el área construida con 1 piso asumido está marcada como estimada (`area_construida_estimada`).
+- El número de pisos es incompleto (`NPISOS = 0` en 1.234 predios); el área construida con 1 piso asumido está marcada como estimada (`is_built_area_estimated`).
 - Los polígonos dudosos (área < 5 m² o > 50.000 m²) se conservan con su flag, no se eliminan.
 - Priorizar atención con estos datos requiere verificación en campo.

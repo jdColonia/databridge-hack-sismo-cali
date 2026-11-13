@@ -4,9 +4,9 @@ resources:
     el_equipo_medallion:
       name: el_equipo_medallion
       tasks:
-        - task_key: setup_volumen
+        - task_key: setup_volume
           notebook_task:
-            notebook_path: ../src/setup/setup_volumen.py
+            notebook_path: ../src/setup/setup_volume.py
             base_parameters: &params
               catalog: ${var.catalog}
               schema: ${var.schema}
@@ -14,44 +14,67 @@ resources:
               team: ${var.team}
               volume: ${var.volume}
 
-        - task_key: bronze_predios
+        - task_key: bronze_hackathon_buildings
           depends_on:
-            - task_key: setup_volumen
+            - task_key: setup_volume
           notebook_task:
-            notebook_path: ../src/bronze/bronze_predios.py
+            notebook_path: ../src/bronze/bronze_hackathon_buildings.py
+            base_parameters: *params
+
+        - task_key: bronze_idesc_references
+          depends_on:
+            - task_key: setup_volume
+          notebook_task:
+            notebook_path: ../src/bronze/bronze_idesc_references.py
             base_parameters: *params
 
         - task_key: bronze_microzonificacion
           depends_on:
-            - task_key: setup_volumen
+            - task_key: setup_volume
           notebook_task:
             notebook_path: ../src/bronze/bronze_microzonificacion.py
             base_parameters: *params
 
-        - task_key: silver_predios
+        - task_key: silver_references
           depends_on:
-            - task_key: bronze_predios
+            - task_key: bronze_idesc_references
           notebook_task:
-            notebook_path: ../src/silver/silver_predios.py
+            notebook_path: ../src/silver/silver_references.py
             base_parameters: *params
 
-        - task_key: silver_datos_adicionales
+        - task_key: silver_buildings
           depends_on:
-            - task_key: silver_predios
+            - task_key: bronze_hackathon_buildings
+            - task_key: silver_references
           notebook_task:
-            notebook_path: ../src/silver/silver_datos_adicionales.py
+            notebook_path: ../src/silver/silver_buildings.py
             base_parameters: *params
 
-        - task_key: gold_mapa_y_resumen
+        - task_key: silver_neighborhood_crosswalk
           depends_on:
-            - task_key: silver_datos_adicionales
+            - task_key: silver_buildings
           notebook_task:
-            notebook_path: ../src/gold/gold_mapa_y_resumen.py
+            notebook_path: ../src/silver/silver_neighborhood_crosswalk.py
+            base_parameters: *params
+
+        - task_key: silver_osm_facilities
+          depends_on:
+            - task_key: silver_buildings
+          notebook_task:
+            notebook_path: ../src/silver/silver_osm_facilities.py
+            base_parameters: *params
+
+        - task_key: gold_map_and_summaries
+          depends_on:
+            - task_key: silver_osm_facilities
+            - task_key: silver_neighborhood_crosswalk
+          notebook_task:
+            notebook_path: ../src/gold/gold_map_and_summaries.py
             base_parameters: *params
 
         - task_key: export_geojson
           depends_on:
-            - task_key: gold_mapa_y_resumen
+            - task_key: gold_map_and_summaries
           notebook_task:
             notebook_path: ../src/export/export_geojson.py
             base_parameters: *params

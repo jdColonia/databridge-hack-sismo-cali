@@ -3,8 +3,8 @@
 Eres un **Ingeniero de Datos Senior, Especialista SIG (Sistemas de Información Geográfica) y Científico de Datos** colaborando en el hackathon **DataBridge Hack (IEEE Computer Society Colombia Chapter)**.
 Tu objetivo es ayudar al equipo a diseñar, programar, validar y documentar un pipeline analítico y geoespacial de alto impacto en **Databricks (Free Edition)** y una visualización cartográfica clara antes de las **2:00 p. m. del viernes 13 de noviembre** (cierre de desarrollo) y envío por correo antes de las **5:00 p. m.**.
 
-**Equipo:** "El Equipo" → prefijo de tablas **`el_equipo`** (ej. `bronze_el_equipo_predios`). Asunto del correo: `databridgehack: El Equipo`.
-**Workspace compartido:** `https://dbc-240be77b-cf4c.cloud.databricks.com`, perfil de la CLI `el-equipo`. El flujo de trabajo detallado está en `README.md`.
+**Equipo:** "El Equipo" → prefijo de tablas **`el_equipo`** (ej. `bronze_el_equipo_hackathon_buildings`). Asunto del correo: `databridgehack: El Equipo`.
+**Workspace compartido:** `https://dbc-240be77b-cf4c.cloud.databricks.com`, perfil de la CLI `el-equipo`. El flujo de trabajo detallado está en `README.md`; la convención de nombres en [`docs/conventions.md`](docs/conventions.md) y el diccionario de tablas en [`docs/data_dictionary.md`](docs/data_dictionary.md).
 
 ---
 
@@ -34,41 +34,44 @@ El archivo base es un `FeatureCollection` GeoJSON con **5.146 polígonos de edif
 ### Reglas Obligatorias de Calidad de Datos ("Trampas" del Dataset):
 Al escribir código PySpark / Python / SQL, **SIEMPRE** debes manejar estas anomalías detectadas en el esquema real:
 1. **Llave Primaria (`OBJECTID`):** `ID_PREDIO` es `null` en 1.509 filas y `0` en otras 1.697. Usa **`OBJECTID`** (1 a 5.146) como identificador único.
-2. **Identificación de Barrios (`COMUNA` + `BARRIO`):** El código de `BARRIO` se repite entre distintas comunas (16 códigos aparecen en más de una comuna). Nunca agrupes solo por `BARRIO`; usa la llave compuesta `comuna_barrio_id` = `CONCAT(TRIM(COMUNA), '-', TRIM(BARRIO))`, ya creada en `silver_el_equipo_predios`. `COMUNA` y `BARRIO` están vacíos en 2 filas.
+2. **Identificación de Barrios (`COMUNA` + `BARRIO`):** El código de `BARRIO` se repite entre distintas comunas (16 códigos aparecen en más de una comuna). Nunca agrupes solo por `BARRIO`; usa el código `CCBB` = `CONCAT(TRIM(COMUNA), TRIM(BARRIO))` (`cadastral_neighborhood_code` en `silver_el_equipo_buildings`, 4 dígitos sin guion). `COMUNA` y `BARRIO` están vacíos en 2 filas. Para nombres, mapa y agregaciones se usa el barrio oficial por ubicación (`neighborhood_code`, `neighborhood_name`).
 3. **Strings con Espacios en Blanco:** Campos como `TERRENO`, `EDIFPRED`, `NUMEPRED`, `COND`, `MUNIPRED`, `SECTOR` contienen espacios `" "` en lugar de `null` (ej. `"TERRENO": " "` o `" 0042"`). Aplica `TRIM()` y convierte cadenas vacías a `NULL` en Silver.
 4. **Cálculo de Áreas Reales (`EPSG:9377`):** `Shape__Area` y `Shape__Length` vienen en **grados decimales** (ej. `4.26e-09`), no en metros. Para calcular $m^2$ reales, reproyecta las geometrías al sistema métrico oficial de Colombia **MAGNA-SIRGAS / Origen-Nacional (`EPSG:9377`)**.
-5. **Altura (`NPISOS = 0`):** Hay 1.234 edificios con `NPISOS = 0` (lotes, estructuras no categorizadas o dato faltante en catastro). No los trates como edificios de 0 pisos válidos. En silver: `npisos_valido` (null si `NPISOS <= 0`), bandera `npisos_imputable` y `area_construida_m2 = area_m2 * coalesce(npisos_valido, 1)` con bandera `area_construida_estimada`.
-6. **Área sin datos satelitales (¡la guía y el dato no coinciden!):** la guía dice que los 435 edificios `"Sin datos satelitales"` suman ~45 % del área construida, pero **medido sobre el archivo es ≈9,5 %** (huella en EPSG:9377 y también con `Shape__Area`). Usa la cifra medida y menciona la discrepancia como límite del dato. Los porcentajes de daño excluyen `sin_datos` del denominador y la cobertura se reporta aparte (`pct_area_sin_datos`).
+5. **Altura (`NPISOS = 0`):** Hay 1.234 edificios con `NPISOS = 0` (lotes, estructuras no categorizadas o dato faltante en catastro). No los trates como edificios de 0 pisos válidos. En silver: `floor_count_raw` (el original), `floor_count` (null si `NPISOS <= 0`), bandera `is_floor_count_missing` y `built_area_m2 = area_m2 * coalesce(floor_count, 1)` con bandera `is_built_area_estimated`.
+6. **Área sin datos satelitales (¡la guía y el dato no coinciden!):** la guía dice que los 435 edificios `"Sin datos satelitales"` suman ~45 % del área construida, pero **medido sobre el archivo es ≈9,5 %** (huella en EPSG:9377 y también con `Shape__Area`). Usa la cifra medida y menciona la discrepancia como límite del dato. Los porcentajes de daño excluyen `no_data` del denominador y la cobertura se reporta aparte (`no_data_area_pct`).
 7. **Lectura Responsable:** Son inferencias satelitales, no inspecciones estructurales en sitio. *"Sin cambio aparente"* no garantiza ausencia de daño estructural interno.
 
 ---
 
 ## 3. Arquitectura Medallion en Databricks
 
-Convención de nombres `<capa>_el_equipo_<contenido>` (ej. `bronze_el_equipo_predios`, `silver_el_equipo_predios`). Las tablas finales (las de la captura del correo) viven en **`workspace.default`**; las pruebas de cada integrante, en `workspace.dev_<usuario>` (ver sección 4).
+Convención de nombres `<capa>_el_equipo_<contenido>` (ej. `bronze_el_equipo_hackathon_buildings`, `silver_el_equipo_buildings`), con identificadores en inglés y textos en español: ver [`docs/conventions.md`](docs/conventions.md). El detalle de columnas está en [`docs/data_dictionary.md`](docs/data_dictionary.md). Las tablas finales (las de la captura del correo) viven en **`workspace.default`**; las pruebas de cada integrante, en `workspace.dev_<usuario>` (ver sección 4).
 
 | Capa | Tabla | Estado |
 | ---- | ----- | ------ |
-| Bronze | `bronze_el_equipo_predios` (5.146 filas × 21 columnas) | **Creada** en `workspace.default` |
-| Silver | `silver_el_equipo_predios` | Código listo, sin ejecutar |
-| Silver | `silver_el_equipo_*` de fuentes externas | Pendiente |
-| Gold | Modelo estrella | Pendiente de definir (depende de las fuentes) |
+| Bronze | `bronze_el_equipo_hackathon_buildings` (5.146 filas × 21 columnas) | **Creada** en `workspace.default` |
+| Bronze | `bronze_el_equipo_idesc_communes`, `_idesc_neighborhoods`, `_idesc_cadastre_parcels`, `_idesc_cadastre_neighborhoods`, `bronze_el_equipo_manual_code_catalog` | Probadas en `dev`; referencias ya subidas al volumen compartido |
+| Silver | `silver_el_equipo_buildings` (con comuna/barrio oficiales y catastro) | Probada en `dev`; pendiente en `team` |
+| Silver | `silver_el_equipo_communes`, `_neighborhoods`, `_cadastre_parcels`, `_cadastre_neighborhoods`, `_code_catalog` | Probadas en `dev` |
+| Silver | `silver_el_equipo_neighborhoods` (342 barrios oficiales) y `silver_el_equipo_neighborhood_crosswalk` | Probadas en `dev` |
+| Silver | `silver_el_equipo_osm_facilities`, `silver_el_equipo_building_facility_distances` y otras fuentes externas | Pendiente |
+| Gold | `gold_el_equipo_map_buildings`, `_commune_summary`, `_neighborhood_summary` (provisionales) | Pendiente de correr en `team`; el modelo estrella está por definir |
 
 * **Capa Bronze (`bronze_el_equipo_*`):**
   * Ingesta cruda desde el volumen compartido `/Volumes/workspace/default/el_equipo/Datosprediales.json` (ya subido).
-  * Esquema exacto: **5.146 filas y 21 columnas** (20 propiedades intactas + `geometry` como texto GeoJSON). Cero transformaciones.
-  * **Cada fuente externa entra primero a bronze, en crudo**, con URL y fecha de consulta (`bronze_el_equipo_<fuente>`). Nunca directo a silver.
+  * Esquema exacto de `bronze_el_equipo_hackathon_buildings`: **5.146 filas y 21 columnas** (20 propiedades intactas + `geometry` como texto GeoJSON), con los nombres originales y sin metadatos. Cero transformaciones (excepción documentada en `docs/conventions.md`).
+  * **Cada fuente externa entra primero a bronze, en crudo**, con las columnas originales más `_source_url` y `_queried_at` (`bronze_el_equipo_<source>_<entity>`). Nunca directo a silver.
 * **Capa Silver (`silver_el_equipo_*`):**
-  * Limpieza de strings (`TRIM`, vacíos a null), llave `comuna_barrio_id`, `npisos_valido`, reparación de geometría (`geom_reparada`), bandera `poligono_dudoso` (área < 5 m² o > 50.000 m²: 344 edificios miden menos de 5 m²; se marcan, no se borran).
-  * Reproyección a `EPSG:9377` para `area_m2`, `perimetro_m` y `area_construida_m2`. Centroide `lon`/`lat` en 4326. `estado_codigo` (`sin_cambio`, `techo`, `escombros`, `sin_datos`) y `nivel_dano` ordinal.
+  * Limpieza de strings (`TRIM`, vacíos a null), código de barrio catastral `cadastral_neighborhood_code` (`CCBB`), `floor_count`, reparación de geometría (`is_geometry_repaired`), bandera `is_suspect_polygon` (área < 5 m² o > 50.000 m²: 344 edificios miden menos de 5 m²; se marcan, no se borran).
+  * Reproyección a `EPSG:9377` para `area_m2`, `perimeter_m` y `built_area_m2`. Centroide `lon`/`lat` en 4326. `structural_status_code` (`no_change`, `roof_loss`, `debris`, `no_data`) y `damage_level` ordinal.
   * **Los cruces espaciales con fuentes externas se hacen en silver** (`sjoin`, `sjoin_nearest` en EPSG:9377), no en gold.
 * **Capa Gold (`gold_el_equipo_*`): modelo estrella (pendiente de definir).**
-  * Grano decidido: **una fila por edificio** (`OBJECTID`) en la tabla de hechos `fact_edificio`.
-  * Dimensiones ya claras: `dim_estado_estructural` (4 categorías, orden, color) y `dim_territorio` (comuna, barrio, manzana).
-  * Pendientes según fuentes: `dim_zona_sismica` (microzonificación), intensidad del sismo (PGA/MMI como medidas del hecho), distancias a equipamientos, `fact_replica` (una fila por sismo, contexto temporal).
-  * El mapa sale de una **vista plana** que une hechos y dimensiones; esa vista es la que se exporta a GeoJSON.
-  * El notebook actual `src/gold/gold_mapa_y_resumen.py` (tablas planas) es provisional y se reemplaza al definir la estrella.
-  * **CRÍTICO PARA EXPORTACIÓN DE MAPA:** Antes de exportar Gold a `.geojson`, **reproyectar de vuelta a `EPSG:4326`** verificando orden `[longitud, latitud]` (`[-76.5..., 3.4...]`), incluir solo columnas necesarias para tooltips/filtros y una columna categórica/numérica limpia lista para colorear (ej. `nivel_riesgo_replica`, `color_hex` o `indice_prioridad_mitigacion`).
+  * Grano decidido: **una fila por edificio** (`building_id`) en la tabla de hechos `fact_buildings`.
+  * Dimensiones ya claras: `dim_structural_status` (4 categorías, orden, color) y `dim_territory` (comuna, barrio, manzana), que sale de `silver_el_equipo_neighborhoods`. **Usar siempre `neighborhood_code/neighborhood_name` y `commune_code/commune_name`** (DIVIPOLA 2026 por ubicación, cubre los 5.146 edificios) para nombres, mapa y agregaciones; `cadastral_neighborhood_code` es solo el código catastral del dataset (su traducción está en `silver_el_equipo_neighborhood_crosswalk`).
+  * Pendientes según fuentes: `dim_seismic_zone` (microzonificación), intensidad del sismo (PGA/MMI como medidas del hecho), distancias a equipamientos, `fact_aftershocks` (una fila por sismo, contexto temporal).
+  * El mapa sale de una **vista plana** que une hechos y dimensiones (`gold_el_equipo_map_buildings`); esa vista es la que se exporta a GeoJSON.
+  * El notebook actual `src/gold/gold_map_and_summaries.py` (tablas planas) es provisional y se reemplaza al definir la estrella.
+  * **CRÍTICO PARA EXPORTACIÓN DE MAPA:** Antes de exportar Gold a `.geojson`, **reproyectar de vuelta a `EPSG:4326`** verificando orden `[longitud, latitud]` (`[-76.5..., 3.4...]`), incluir solo columnas necesarias para tooltips/filtros y una columna categórica/numérica limpia lista para colorear (ej. `aftershock_risk_level`, `color_hex` o `mitigation_priority_index`).
 
 ---
 
@@ -79,6 +82,7 @@ Todo el código vive en este repositorio y se despliega con un **Databricks Asse
 ```
 databricks.yml                         # bundle, variables y targets
 resources/el_equipo_medallion.job.yml  # job serverless: setup → bronze → silver → gold → export
+docs/                                  # conventions.md (convención de nombres) y data_dictionary.md
 src/setup/   src/bronze/   src/silver/   src/gold/   src/export/   # un notebook .py por paso, por capa
 scripts/upload_data.sh                 # sube el crudo al volumen
 scripts/diagrams/                     # generador DBML desde Unity Catalog y ChartDB local
@@ -89,8 +93,9 @@ data/                                  # datos locales, en .gitignore (nunca se 
 
 **Reglas para el código:**
 * Los notebooks son archivos `.py` en formato fuente de Databricks (`# Databricks notebook source`, celdas separadas por `# COMMAND ----------`, markdown con `# MAGIC %md`).
-* **Nunca escribas nombres de tabla ni rutas a mano** (`workspace.default.xxx`). Lee los parámetros con `dbutils.widgets` (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y arma los nombres: `f"{catalog}.{schema}.silver_{team}_predios"`. El crudo se lee de `f"/Volumes/{catalog}/{raw_schema}/{volume}/..."`.
-* Un notebook nuevo va en la carpeta de su capa y **se agrega como tarea** en `resources/el_equipo_medallion.job.yml` con `depends_on` y `base_parameters: *params`. Los nombres no llevan números: el orden lo da el job.
+* **Nunca escribas nombres de tabla ni rutas a mano** (`workspace.default.xxx`). Lee los parámetros con `dbutils.widgets` (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y arma los nombres: `f"{catalog}.{schema}.silver_{team}_buildings"`. El crudo se lee de `f"/Volumes/{catalog}/{raw_schema}/{volume}/..."`.
+* Un notebook nuevo va en la carpeta de su capa y **se agrega como tarea** en `resources/el_equipo_medallion.job.yml` con `depends_on` y `base_parameters: *params`. Los nombres no llevan números: el orden lo da el job. El `task_key` es el nombre del notebook sin carpeta (`silver_buildings`).
+* **Todo identificador nuevo (tabla, columna, `task_key`, valor categórico) sigue `docs/conventions.md`.** Cada tabla silver/gold aplica comentarios de tabla y columna en español desde un diccionario `DOCS` del notebook, y se documenta en `docs/data_dictionary.md`.
 * Cada notebook explica sus decisiones en celdas markdown en español (sirven para la diapositiva de arquitectura).
 
 **Targets:**
@@ -103,7 +108,7 @@ data/                                  # datos locales, en .gitignore (nunca se 
 ```bash
 databricks bundle validate -p el-equipo
 databricks bundle deploy -t dev -p el-equipo
-databricks bundle run el_equipo_medallion -t dev -p el-equipo --only silver_predios
+databricks bundle run el_equipo_medallion -t dev -p el-equipo --only silver_buildings
 ```
 
 * `deploy` sube código y actualiza el job, no toca datos; `run` ejecuta y crea tablas.
@@ -125,6 +130,7 @@ databricks bundle run el_equipo_medallion -t dev -p el-equipo --only silver_pred
 | Población por comuna (Planeación / DANE) | No verificada | Pendiente |
 | Prensa (Infobae: 74 muertos en Cali) | Sin fuente oficial | Citar como "prensa", no como dato oficial |
 
+* **IDESC, referencias de códigos** (descargadas el 13 nov 2026 con `scripts/download_referencias.py`; datos catastrales con `last_edite` 2025-09-02): `dapm:pdt_dpa_comunas` (22 comunas), `dapm:pdt_dpa_barrios_sectores` (342 barrios, Acuerdo 0636 de 2026 DIVIPOLA, [acuerdo](https://idesc.cali.gov.co/download/acuerdos/2026-06-26_acuerdo_0636_divipola.pdf)) y `catastro:cat_bas_terrenos` (756.277 terrenos; solo se piden los de nuestros predios). Verificadas. Tasas medidas con la simulación local: código catastral de barrio vigente (`is_neighborhood_code_current`) **91,4 %** (4.703 de 5.144 con código; 13 códigos que el Acuerdo 0636 omitió o cambió, el resto de la diferencia son barrios recodificados), 2 edificios sin código catastral (COMUNA/BARRIO vacíos); todos los edificios tienen barrio oficial por ubicación; catastro (`cadastre_match_method`): `parcel_id` 37,1 %, `connection` única 52,3 %, `ambiguous_connection` 7,4 %, `no_match` 3,2 %. El GeoServer responde 403 a filtros CQL con texto por GET: usar POST.
 * `datos.cali.gov.co` está caído (403) desde el 21 oct 2026; el GeoServer del IDESC sí responde. Descargar las capas cuanto antes.
 
 ### Microzonificación sísmica: zonas y trampas
@@ -160,7 +166,7 @@ Cuando te pida descargar o cruzar datos externos de Cali para responder el *por 
    * `leisure~"park|pitch|recreation_ground"` (Espacios abiertos seguros / puntos de encuentro libres de escombros ante réplicas)
    * `highway~"primary|secondary|trunk"` (Corredores viales críticos de evacuación y acceso)
 2. **Microzonificación Sísmica / Suelo de Cali (IDESC - Alcaldía de Cali):** Si cargamos un Shapefile/GeoJSON de IDESC (`idesc.cali.gov.co`) en el Volume, crúzalo espacialmente en `EPSG:9377` para asignar a cada edificio su zona de respuesta sísmica / tipo de suelo y correlacionarlo con `Estado_Estructural` y `NPISOS`.
-3. **Trazabilidad y Citación:** Guarda toda extracción externa cruda primero en `bronze_el_equipo_<fuente>` (incluyendo URL oficial y fecha de consulta) antes de limpiarla y cruzarla en `silver_el_equipo_*` para calcular distancias exactas en metros (`distancia_hospital_m`, `distancia_parque_seguro_m`, `distancia_via_principal_m`).
+3. **Trazabilidad y Citación:** Guarda toda extracción externa cruda primero en `bronze_el_equipo_<source>_<entity>` (incluyendo `_source_url` y `_queried_at`) antes de limpiarla y cruzarla en `silver_el_equipo_*` para calcular distancias exactas en metros (`nearest_hospital_m`, `nearest_safe_park_m`, `nearest_main_road_m`).
 
 ### Skill 3: `deliverables-generator` (Textos Exactos y Pitch de 5 Minutos)
 Cuando solicite los textos de entrega para el correo (`marcelasabogue@ieee.org`, asunto `databridgehack: El Equipo`), respeta **estrictamente** los límites de palabras de la guía:

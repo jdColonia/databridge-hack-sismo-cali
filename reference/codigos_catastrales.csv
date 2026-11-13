@@ -1,0 +1,11 @@
+dominio,codigo,significado,fuente,enlace,estado
+DEPAPRED,76,Valle del Cauca,DANE DIVIPOLA,https://geoportal.dane.gov.co/geovisores/territorio/consulta-divipola-division-politico-administrativa-de-colombia/,verificado
+MUNIPRED,001,Santiago de Cali,DANE DIVIPOLA,https://geoportal.dane.gov.co/geovisores/territorio/consulta-divipola-division-politico-administrativa-de-colombia/,verificado
+TIPO_AVALU,01,Zona urbana,IGAC - estructura del Numero Predial Nacional (Res. 070 de 2011 modificada por Res. 829 de 2013),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+TIPO_AVALU,00,Zona rural,IGAC - estructura del Numero Predial Nacional (Res. 070 de 2011 modificada por Res. 829 de 2013),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+SECTOR,00,Sector catastral 00,IGAC - estructura del Numero Predial Nacional (Res. 070 de 2011 modificada por Res. 829 de 2013),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+COND,0,,IGAC - condicion de la propiedad del Numero Predial Nacional (Res. 070 de 2011),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+COND,2,,IGAC - condicion de la propiedad del Numero Predial Nacional (Res. 070 de 2011),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+COND,5,,IGAC - condicion de la propiedad del Numero Predial Nacional (Res. 070 de 2011),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+COND,8,,IGAC - condicion de la propiedad del Numero Predial Nacional (Res. 070 de 2011),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar
+COND,9,,IGAC - condicion de la propiedad del Numero Predial Nacional (Res. 070 de 2011),https://www.igac.gov.co/sites/default/files/listadomaestro/IN-GCT-PC01-06%20Identificacion%20Predial_0.pdf,por verificar

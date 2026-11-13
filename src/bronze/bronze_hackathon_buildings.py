@@ -1,8 +1,12 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Bronze: predios tal cual llegan
+# MAGIC # Bronze: edificios del hackathon tal cual llegan
 # MAGIC **Decisión:** bronze guarda el dato *sin limpiar*: sin `trim`, sin convertir vacíos a nulos, sin corregir tipos raros.
 # MAGIC Una fila por feature del GeoJSON, una columna por propiedad (20) más `geometry` como texto GeoJSON = **21 columnas**.
+# MAGIC
+# MAGIC **Excepción documentada a la convención de nombres** (`docs/conventions.md`): esta tabla conserva los nombres originales de las 21 columnas
+# MAGIC (`OBJECTID`, `COMUNA`, `NPISOS`...) y no lleva metadatos de ingesta, porque la guía del reto verifica exactamente 5.146 filas × 21 columnas.
+# MAGIC La traducción a nombres en inglés ocurre en `silver_buildings`.
 # MAGIC
 # MAGIC Se lee con `json` de Python porque el archivo pesa ~5 MB; no hace falta un lector distribuido.
 # MAGIC Se define esquema explícito para que el resultado no dependa de la inferencia (códigos como string, conteos como long, medidas como double).
@@ -26,7 +30,7 @@ volume = dbutils.widgets.get("volume")
 
 # El crudo vive en el volumen compartido (se sube una vez); la tabla va al esquema de trabajo
 src_path = f"/Volumes/{catalog}/{raw_schema}/{volume}/Datosprediales.json"
-bronze_table = f"{catalog}.{schema}.bronze_{team}_predios"
+bronze_table = f"{catalog}.{schema}.bronze_{team}_hackathon_buildings"
 
 # COMMAND ----------
 

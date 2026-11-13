@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sube Datosprediales.json al volumen de Unity Catalog.
-# IMPORTANTE: antes hay que correr el setup (tarea setup_volumen) o crear el
+# IMPORTANTE: antes hay que correr el setup (tarea setup_volume) o crear el
 # volumen a mano: CREATE VOLUME IF NOT EXISTS workspace.default.el_equipo
 set -euo pipefail
 
