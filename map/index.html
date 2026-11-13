@@ -736,7 +736,7 @@ function readHash(){
     // hover
     const hoverB=e=>{ const f=e.features[0]; if(!f) return; const p=byId.get(f.id); if(!p) return; map.getCanvas().style.cursor='pointer';
       const st=STATUS.find(s=>s.code===p.structural_status_code), pr=PRIORITY.find(s=>s.code===p.aftershock_priority_code);
-      popup.setLngLat(e.lngLat).setHTML('<b>#'+p.building_id+' · '+esc(p.neighborhood_name)+'</b><br>'+st.label+'<br>Prioridad: <b>'+pr.label+'</b> · '+esc(p.seismic_zone_name||'sin microzona')+'<br>Hospital: '+fmt(p.nearest_hospital_m)+' m · Pisos: '+(p.floor_count==null?'s/d':fmt(p.floor_count))+'<br><span style="color:#5b6475">Clic para ver detalle</span>').addTo(map); };
+      popup.setLngLat(e.lngLat).setHTML('<b>#'+p.building_id+' · '+esc(p.neighborhood_name)+'</b><br>'+st.label+'<br>Prioridad: <b>'+pr.label+'</b> · '+esc(p.seismic_zone_name||'sin microzona')+'<br>Hospital: '+fmt(p.nearest_hospital_m)+' m · Pisos: '+(p.floor_count==null?'s/d':fmt(p.floor_count))+'<br>Uso (catastro): '+esc(p.land_use||'sin dato')+'<br><span style="color:#5b6475">Clic para ver detalle</span>').addTo(map); };
     const leave=()=>{ map.getCanvas().style.cursor=''; popup.remove(); };
     ['b-fill','bp'].forEach(l=>{ map.on('mousemove',l,hoverB); map.on('mouseleave',l,leave); map.on('click',l,e=>{ const f=e.features[0]; if(f){ popup.remove(); select(f.id); writeHash(); } }); });
     ['f-hosp','f-health','f-emerg','f-police','f-school'].forEach(l=>{
