@@ -21,6 +21,13 @@ resources:
             notebook_path: ../src/bronze/bronze_predios.py
             base_parameters: *params
 
+        - task_key: bronze_microzonificacion
+          depends_on:
+            - task_key: setup_volumen
+          notebook_task:
+            notebook_path: ../src/bronze/bronze_microzonificacion.py
+            base_parameters: *params
+
         - task_key: silver_predios
           depends_on:
             - task_key: bronze_predios
