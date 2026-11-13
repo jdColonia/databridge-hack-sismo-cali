@@ -10,7 +10,7 @@
 # MAGIC   No se convierten los ceros de las zonas "de estudio particular" ni se descartan columnas basura: eso es trabajo de silver.
 # MAGIC - El único ajuste es de **tipo**: el WFS mezcla enteros y decimales en un mismo campo (`sm_etc` = `1` y `0.45`), así que las medidas se guardan como `double`
 # MAGIC   para que el esquema no dependa de qué valor llegó primero. Las columnas `*_etl` llegan como texto (`'0.40'`) y se dejan como texto.
-# MAGIC - Se agregan columnas de **trazabilidad**: `feature_id` (id del WFS, porque `zona_mzsc` se repite), `fuente_url`, `origen` y `fecha_consulta`.
+# MAGIC - Se agregan columnas de **trazabilidad**: `feature_id` (id del WFS, porque `zona_mzsc` se repite), `_source_url`, `_load_origin` (`wfs` o `volume_copy`) y `_queried_at`.
 # MAGIC - El crudo se guarda primero en el volumen de trabajo (`externos/`), y la tabla se arma desde ese archivo.
 # MAGIC - **Respaldo:** si el GeoServer no responde (el IDESC anunció suspensión de servicios), se lee una copia subida a mano en
 # MAGIC   `/Volumes/<catalog>/<raw_schema>/<volume>/externos/microzonificacion_sismica.geojson`. Ese volumen compartido solo se lee, nunca se escribe.
@@ -38,15 +38,15 @@ raw_schema = dbutils.widgets.get("raw_schema")
 team = dbutils.widgets.get("team")
 volume = dbutils.widgets.get("volume")
 
-FUENTE_URL = (
+SOURCE_URL = (
     "https://ws-idesc.cali.gov.co/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature"
     "&typeNames=idesc:mc_microzonificacion_sismica&outputFormat=application/json&srsName=EPSG:4326"
 )
-NOMBRE_ARCHIVO = "microzonificacion_sismica.geojson"
+FILE_NAME = "microzonificacion_sismica.geojson"
 
 ext_dir = f"/Volumes/{catalog}/{schema}/{volume}/externos"           # volumen de trabajo (se escribe)
-respaldo_path = f"/Volumes/{catalog}/{raw_schema}/{volume}/externos/{NOMBRE_ARCHIVO}"  # copia manual (solo lectura)
-bronze_table = f"{catalog}.{schema}.bronze_{team}_microzonificacion"
+backup_path = f"/Volumes/{catalog}/{raw_schema}/{volume}/externos/{FILE_NAME}"  # copia manual (solo lectura)
+bronze_table = f"{catalog}.{schema}.bronze_{team}_idesc_seismic_zones"
 os.makedirs(ext_dir, exist_ok=True)
 
 # COMMAND ----------
@@ -58,33 +58,33 @@ os.makedirs(ext_dir, exist_ok=True)
 
 # COMMAND ----------
 
-def es_feature_collection(contenido: bytes) -> bool:
+def is_feature_collection(content: bytes) -> bool:
     try:
-        return json.loads(contenido).get("type") == "FeatureCollection"
+        return json.loads(content).get("type") == "FeatureCollection"
     except (ValueError, AttributeError):
         return False
 
-origen, fecha_consulta, raw_path = None, None, f"{ext_dir}/{NOMBRE_ARCHIVO}"
+load_origin, queried_at, raw_path = None, None, f"{ext_dir}/{FILE_NAME}"
 try:
-    resp = requests.get(FUENTE_URL, timeout=120)
+    resp = requests.get(SOURCE_URL, timeout=120)
     resp.raise_for_status()
-    if not es_feature_collection(resp.content):
+    if not is_feature_collection(resp.content):
         raise ValueError(f"respuesta no es GeoJSON ({resp.headers.get('content-type')})")
     with open(raw_path, "wb") as fh:
         fh.write(resp.content)
-    origen, fecha_consulta = "wfs_idesc", datetime.now(timezone.utc)
+    load_origin, queried_at = "wfs", datetime.now(timezone.utc)
     print(f"Descargado del WFS: {raw_path} ({len(resp.content) / 1024:.0f} KB)")
 except Exception as e:
     print(f"AVISO: el WFS del IDESC no respondió ({e}). Se intenta la copia del volumen compartido.")
-    if not os.path.exists(respaldo_path):
+    if not os.path.exists(backup_path):
         raise FileNotFoundError(
-            f"No hay copia de respaldo en {respaldo_path}. Descarga la capa localmente desde FUENTE_URL y súbela con "
-            f"`databricks fs cp <archivo> dbfs:{respaldo_path} -p el-equipo`."
+            f"No hay copia de respaldo en {backup_path}. Descarga la capa localmente desde SOURCE_URL y súbela con "
+            f"`databricks fs cp <archivo> dbfs:{backup_path} -p el-equipo`."
         )
-    raw_path = respaldo_path
-    origen = "copia_volumen"
-    fecha_consulta = datetime.fromtimestamp(os.path.getmtime(respaldo_path), tz=timezone.utc)
-    print(f"Usando copia: {raw_path} (modificada {fecha_consulta:%Y-%m-%d %H:%M} UTC)")
+    raw_path = backup_path
+    load_origin = "volume_copy"
+    queried_at = datetime.fromtimestamp(os.path.getmtime(backup_path), tz=timezone.utc)
+    print(f"Usando copia: {raw_path} (modificada {queried_at:%Y-%m-%d %H:%M} UTC)")
 
 with open(raw_path, "r", encoding="utf-8") as fh:
     gj = json.load(fh)
@@ -100,41 +100,41 @@ PROP_COLS = [
     "am_etc", "sm_etc", "to_etc", "tc_etc", "tl_etc", "am_etl", "sm_etl", "to_etl", "tc_etl", "tl_etl",
     "sucep_licu", "corrim_lat",
 ]
-tipo = {**{c: DoubleType() for c in DOUBLES}, **{c: LongType() for c in LONGS}, **{c: StringType() for c in STRINGS}}
+col_type = {**{c: DoubleType() for c in DOUBLES}, **{c: LongType() for c in LONGS}, **{c: StringType() for c in STRINGS}}
 
-schema_bronze = StructType(
+bronze_schema = StructType(
     [StructField("feature_id", StringType())]
-    + [StructField(c, tipo[c]) for c in PROP_COLS]
+    + [StructField(c, col_type[c]) for c in PROP_COLS]
     + [
         StructField("geometry", StringType()),
-        StructField("fuente_url", StringType()),
-        StructField("origen", StringType()),
-        StructField("fecha_consulta", TimestampType()),
+        StructField("_source_url", StringType()),
+        StructField("_load_origin", StringType()),
+        StructField("_queried_at", TimestampType()),
     ]
 )
 
 # Columnas nuevas en el WFS harían perder datos en silencio: mejor fallar
-props_crudas = {k for f in gj["features"] for k in (f.get("properties") or {})}
-assert props_crudas == set(PROP_COLS), f"El esquema del WFS cambió: {sorted(props_crudas ^ set(PROP_COLS))}"
+raw_props = {k for f in gj["features"] for k in (f.get("properties") or {})}
+assert raw_props == set(PROP_COLS), f"El esquema del WFS cambió: {sorted(raw_props ^ set(PROP_COLS))}"
 
-def castear(col, valor):
-    if valor is None:
+def cast_value(col, value):
+    if value is None:
         return None
     if col in DOUBLES:
-        return float(valor)
+        return float(value)
     if col in LONGS:
-        return int(valor)
-    return str(valor)
+        return int(value)
+    return str(value)
 
 def to_row(feature):
     props = feature.get("properties") or {}
     return tuple(
         [feature.get("id")]
-        + [castear(c, props.get(c)) for c in PROP_COLS]
-        + [json.dumps(feature.get("geometry")), FUENTE_URL, origen, fecha_consulta.replace(tzinfo=None)]
+        + [cast_value(c, props.get(c)) for c in PROP_COLS]
+        + [json.dumps(feature.get("geometry")), SOURCE_URL, load_origin, queried_at.replace(tzinfo=None)]
     )
 
-df = spark.createDataFrame([to_row(f) for f in gj["features"]], schema=schema_bronze)
+df = spark.createDataFrame([to_row(f) for f in gj["features"]], schema=bronze_schema)
 
 # COMMAND ----------
 
@@ -142,7 +142,7 @@ df = spark.createDataFrame([to_row(f) for f in gj["features"]], schema=schema_br
    .mode("overwrite")
    .option("overwriteSchema", "true")
    .saveAsTable(bronze_table))
-print(f"Guardada {bronze_table} (origen: {origen})")
+print(f"Guardada {bronze_table} (origen: {load_origin})")
 
 # COMMAND ----------
 
