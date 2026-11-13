@@ -32,32 +32,41 @@ Los notebooks están en `src/` (formato fuente `.py`) y el job en `resources/el_
 
 ## Flujo colaborativo con bundles
 
-Cada integrante despliega en su propia cuenta (target `dev`). El host no está en el yml: sale del perfil de la CLI.
+Todo el equipo trabaja en **un mismo workspace**: `https://dbc-240be77b-cf4c.cloud.databricks.com` (el dueño de la cuenta invita a los demás). El host no está en el yml: sale del perfil de la CLI `el-equipo`.
 
-1. Autenticar (una vez por persona):
-   ```bash
-   databricks auth login --host https://<tu-workspace>.cloud.databricks.com --profile el-equipo
-   ```
-2. Validar el bundle:
-   ```bash
-   databricks bundle validate -p el-equipo
-   ```
-3. Desplegar en tu cuenta:
-   ```bash
-   databricks bundle deploy -t dev -p el-equipo
-   ```
-4. Crear el volumen y subir los datos (el volumen debe existir antes; se crea con la tarea `setup_volumen` o con `CREATE VOLUME IF NOT EXISTS workspace.default.el_equipo`):
+| Target | Dónde escribe las tablas | Quién lo corre |
+| ------ | ------------------------ | -------------- |
+| `dev` (por defecto) | `workspace.dev_<tu_usuario>`: un esquema por integrante, para no pisarse | Cada integrante, para probar su rama |
+| `team` | `workspace.default`: las 3 capas finales que van en la captura | Una sola persona, desde `main` |
+
+El crudo `Datosprediales.json` vive en el volumen compartido `workspace.default.el_equipo` y se sube **una sola vez**; los dos targets lo leen de ahí.
+
+**Una sola vez (el dueño del workspace):**
+1. Invitar a los integrantes: Settings → Identity and access → Users → Add user.
+2. Crear el volumen compartido y subir el crudo: correr una vez el job (la tarea `setup_volumen` crea el volumen) o en SQL `CREATE VOLUME IF NOT EXISTS workspace.default.el_equipo`, y luego:
    ```bash
    DATABRICKS_CONFIG_PROFILE=el-equipo bash scripts/upload_data.sh
    ```
-5. Ejecutar el job:
+
+**Cada integrante:**
+1. Autenticarse contra el workspace compartido:
    ```bash
+   databricks auth login --host https://dbc-240be77b-cf4c.cloud.databricks.com --profile el-equipo
+   ```
+2. Validar, desplegar y correr en su esquema de pruebas:
+   ```bash
+   databricks bundle validate -p el-equipo
+   databricks bundle deploy -t dev -p el-equipo
    databricks bundle run el_equipo_medallion -t dev -p el-equipo
    ```
 
-Nota: en `mode: development` los recursos se prefijan con `[dev tu_usuario]`; las tablas llevan el nombre fijo `el_equipo`, así que dos personas en la misma cuenta se pisarían (por eso cada quien usa su cuenta).
+**Versión final (una persona, con `main` actualizado):**
+```bash
+databricks bundle deploy -t team -p el-equipo
+databricks bundle run el_equipo_medallion -t team -p el-equipo
+```
 
-**Target `team`:** la cuenta elegida donde quedan las 3 capas definitivas. Se usa igual pero con `-t team` (`bundle deploy -t team -p el-equipo`). Para dar acceso a más integrantes, agregar `permissions` en `databricks.yml` (hay un comentario en el target).
+En `mode: development` el job y los notebooks quedan en la carpeta de cada usuario con prefijo `[dev usuario]`, así que nadie pisa los recursos de otro.
 
 ### Convenciones de ramas
 
