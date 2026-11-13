@@ -116,13 +116,24 @@ databricks bundle run el_equipo_medallion -t dev -p el-equipo --only silver_pred
 | Fuente | Estado | Uso |
 | ------ | ------ | --- |
 | **USGS, evento `us6000tjl2`** (M7,4, 10 ago 2026, 116 km de profundidad). [Evento](https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2), ShakeMap `grid.xml` (MMI, PGA, Vs30) y réplicas por API FDSN | Verificada | Contexto de intensidad. En el área de los edificios el MMI varía poco (6,4–7,1): no explica diferencias entre edificios. Réplicas: usar el círculo oficial de la secuencia USGS (centro 4,4791 / −76,5739, radio 125,4 km): 60 réplicas M≥3,5 al 13 nov, la mayor **M5,0 (10 ago, `us6000tjm4`)**. La M5,4 del 3 nov (Rioblanco, Tolima, 10 km de profundidad) queda fuera del círculo: **no es réplica** |
-| **IDESC, microzonificación sísmica** `idesc:mc_microzonificacion_sismica` (16 zonas: `zona_mzsc`, `tc_etc`, `sucep_licu`, `corrim_lat`). WFS: `https://ws-idesc.cali.gov.co/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=idesc:mc_microzonificacion_sismica&outputFormat=application/json&srsName=EPSG:4326` | Verificada. Estudio de 2014 | **Cruce principal:** suelo × daño × pisos (resonancia). Explica el *por qué* |
+| **IDESC, microzonificación sísmica** `idesc:mc_microzonificacion_sismica` (16 zonas: `zona_mzsc`, `tc_etc`, `sucep_licu`, `corrim_lat`). WFS: `https://ws-idesc.cali.gov.co/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=idesc:mc_microzonificacion_sismica&outputFormat=application/json&srsName=EPSG:4326` | Verificada 13 nov 2026 (HTTP 200, 16 polígonos, 835 KB). Estudio INGEOMINAS–DAGMA 2005, adoptado por el Decreto 411.0.20.0158 de 2014 | **Cruce principal:** suelo × daño × pisos (resonancia). Explica el *por qué*. Ver trampas abajo |
 | **IDESC, equipamientos:** `pot_2014:eqp_uco_salud` (482), `pot_2014:eqp_uba_seguridad_ciudadana` (bomberos, Defensa Civil), `educacion:esf_establecimiento_educativo` (356, actualizada 2023–2024), `dapm:pdt_pmep_encuentro` | Revisadas por el agente de investigación. Capas `pot_2014` sin fecha (probablemente 2014) | **Segundo cruce:** distancia a la ayuda más cercana. Responde *qué reduce el impacto de las réplicas* |
 | OpenStreetMap (Overpass) | No respondió en las pruebas | Solo como respaldo del IDESC |
 | Población por comuna (Planeación / DANE) | No verificada | Pendiente |
 | Prensa (Infobae: 74 muertos en Cali) | Sin fuente oficial | Citar como "prensa", no como dato oficial |
 
 * `datos.cali.gov.co` está caído (403) desde el 21 oct 2026; el GeoServer del IDESC sí responde. Descargar las capas cuanto antes.
+
+### Microzonificación sísmica: zonas y trampas
+
+Zonas que tocan el bbox de los edificios (`am_etc` y `sm_etc` en g, `tc_etc` en s): Zona 1 cerros/roca (0,22 · 0,45 · 0,55), Zona 2 (0,35 · 0,75 · 0,45), Zona 3 piedemonte (0,35 · 0,85 · 1,05), Zona 4A (0,33 · 0,75 · 0,75), Zona 4B (0,28 · 0,65 · 0,70), **Zona 4C abanico de Cañaveralejo (0,40 · 1,00 · 0,45, la mayor demanda de la ciudad)**, Zona 4D (0,28 · 0,62 · 1,20), Zona 5 (0,28 · 0,70 · 0,60, licuable), además de Depósitos Antrópicos, Suelo Coluvión y Cauce Activo. Zonas 4E y 6 quedan fuera del bbox.
+
+1. **Los ceros no son cero:** en `Depositos Antropicos`, `Suelo Coluvion` y `Cauce Activo o Terra` los campos `*_etc` valen `0`, que significa "requiere estudio particular". En silver pasarlos a `NULL` con bandera `requiere_estudio_particular`; nunca tratarlos como aceleración cero.
+2. **Polígonos repetidos:** `Zona 6` aparece 2 veces y `Cauce Activo o Terra` 3, con igual `area`/`perimeter` pero distinto `sucep_licu`/`corrim_lat`. No deduplicar por nombre: conservar el `id` del feature y revisar edificios que caigan en más de un polígono.
+3. **Columnas basura y tipos:** descartar `mcooiiain_`, `mcooiiain1`, `mcooiiai_1`, `mcooiiai_2`. Las `*_etl` vienen como texto (`'0.40'`) y casi siempre nulas: castear o ignorar. `area`/`perimeter` están en el CRS original; si se necesita área, recalcular en EPSG:9377.
+4. **Cruce:** `sjoin` directo edificio → microzona en EPSG:9377 (no pasa por barrios, que son la fuente del compañero).
+5. **Respaldo:** la infografía de El País (sept 2026, `multimedia.elpais.com.co/2026/Septiembre/Un_mes_despues_Cali_sigue_de_pie/infografia/microzonas-v9.html`) trae la tabla barrio → microzona (342 barrios, % por zona) con los mismos valores. Usar solo si el GeoServer cae; es fuente secundaria (prensa).
+6. **Fecha para el correo:** la capa no trae fecha. Citar el estudio de 2005 y el decreto de 2014 (sin verificar en el texto del decreto).
 * En la lista de fuentes del correo, anotar la **fecha del dato**, no la fecha de descarga.
 * Recomendación: **dos cruces sólidos** (microzonificación y equipamientos) mejor que muchos superficiales.
 
