@@ -9,3 +9,6 @@ node_modules/
 dbml-error.log
 
 map/data/
+
+# Posiciones de tablas de la extensión DBML del editor
+*.dbdiagram
