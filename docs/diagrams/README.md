@@ -71,8 +71,8 @@ Alternativa sin Docker: [app.chartdb.io](https://app.chartdb.io) (la importació
 
 - **Comentarios:** documenta tablas y columnas en Unity Catalog; el generador los convierte en `note`.
   ```sql
-  COMMENT ON TABLE workspace.dev_x.silver_el_equipo_predios IS 'Predios limpios, EPSG:9377 para medidas';
-  COMMENT ON COLUMN workspace.dev_x.silver_el_equipo_predios.area_m2 IS 'Área de la huella en m², EPSG:9377';
+  COMMENT ON TABLE workspace.dev_x.silver_el_equipo_buildings IS 'Edificios limpios, EPSG:9377 para medidas';
+  COMMENT ON COLUMN workspace.dev_x.silver_el_equipo_buildings.area_m2 IS 'Área de la huella en m², EPSG:9377';
   ```
 - **Llaves informativas** (Unity Catalog, Runtime 13.3 LTS o superior): PRIMARY KEY y FOREIGN KEY **no se aplican** (son informativas), pero documentan el modelo y el generador las dibuja. La columna de la PK debe ser `NOT NULL`. Para el modelo estrella de gold:
   ```sql
