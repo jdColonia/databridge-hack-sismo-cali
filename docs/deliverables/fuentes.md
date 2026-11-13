@@ -6,7 +6,7 @@
 - **Fecha del dato:** evento del 10 de agosto de 2026.
 
 ## IDESC, Infraestructura de Datos Espaciales de Cali (GeoServer WFS)
-Servicio: https://ws-idesc.cali.gov.co/geoserver/ows
+Servicio: https://ws-idesc.cali.gov.co/geoserver/web/ (catálogo de capas del GeoServer; los datos se descargaron por WFS desde el endpoint `/geoserver/ows`)
 
 | Capa | Qué aportó | Fecha del dato |
 | --- | --- | --- |
