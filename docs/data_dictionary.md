@@ -31,6 +31,8 @@ Los nombres reales de las tablas llevan el esquema y el prefijo del equipo (`{ca
 | Silver | `silver_el_equipo_facilities` | Un equipamiento de Cali |
 | Silver | `silver_el_equipo_building_facility_distances` | Un edificio (5.146) |
 | Gold | `gold_el_equipo_map_buildings` | Un edificio (5.146) |
+| Gold | `gold_el_equipo_map_seismic_zones` | Un polígono de microzonificación que toca el área de los edificios |
+| Gold | `gold_el_equipo_map_facilities` | Un equipamiento del área de estudio |
 | Gold | `gold_el_equipo_commune_summary` | Una comuna oficial con edificios |
 | Gold | `gold_el_equipo_neighborhood_summary` | Un barrio oficial con edificios |
 | Gold | `gold_el_equipo_seismic_zone_summary` | Una zona de microzonificación (por nombre) con edificios |
@@ -667,7 +669,55 @@ Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, 
 | `nearest_emergency_name` | string | Nombre de la estación de bomberos o sede de Defensa Civil más cercana; nulo si no tiene nombre. | silver_el_equipo_building_facility_distances |
 | `nearest_open_space_name` | string | Nombre del espacio público más cercano; nulo si no tiene nombre. | silver_el_equipo_building_facility_distances |
 | `open_space_count_500m` | int | Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. | silver_el_equipo_building_facility_distances |
+| `aftershock_priority_code` | string | Prioridad ante réplicas (criterio del equipo, no cifra oficial): high, medium, low o no_data. high = daño (roof_loss o debris) con algún factor agravante; medium = daño sin agravante, o sin cambio sobre suelo que requiere estudio particular o es licuable; low = sin cambio sin agravante de suelo; no_data = sin datos satelitales. | derivado de structural_status_code y los factores agravantes |
+| `has_aggravating_factor` | boolean | Verdadero si el edificio tiene algún factor agravante ante réplicas: zona que requiere estudio particular, suelo licuable, hospital a más de 1.000 m o ningún espacio público de encuentro a 500 m. Nunca nulo. | derivado de requires_site_study, is_liquefaction_susceptible, nearest_hospital_m y open_space_count_500m |
+| `priority_color_hex` | string | Color para el mapa según aftershock_priority_code: rojo high, naranja medium, verde low, gris no_data. | derivado de aftershock_priority_code |
 | `geom_wkt` | string | Geometría del edificio en WKT, EPSG:4326 (lon, lat). | silver_el_equipo_buildings |
+
+### `gold_el_equipo_map_seismic_zones`
+
+Polígonos de microzonificación sísmica del IDESC que tocan el área de los edificios (bbox de los edificios del mapa), con espectros ETC, banderas de suelo, número de edificios asignados y porcentaje de daño. Una fila por polígono; capa de contexto para el mapa.
+
+- **Grano:** Un polígono de microzonificación que toca el bbox de los edificios.
+- **Llave:** `seismic_zone_id`.
+- **Fuente:** `silver_el_equipo_seismic_zones` (polígonos que intersectan el bbox de los edificios, prueba con shapely) y `gold_el_equipo_map_buildings` (conteo y % de daño por `seismic_zone_id`).
+- **Notebook:** `src/gold/gold_map_and_summaries.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `seismic_zone_id` | string | Identificador del polígono de microzonificación (id del feature en el WFS del IDESC). | silver_el_equipo_seismic_zones |
+| `seismic_zone_name` | string | Nombre de la zona de microzonificación (ej. 'Zona 4C'); puede repetirse entre polígonos. | silver_el_equipo_seismic_zones |
+| `etc_am_g` | double | Espectro ETC, aceleración máxima (am) en g; nulo si la zona requiere estudio particular. | silver_el_equipo_seismic_zones |
+| `etc_sm_g` | double | Espectro ETC, aceleración de la meseta espectral (sm) en g; nulo si la zona requiere estudio particular. | silver_el_equipo_seismic_zones |
+| `etc_tc_s` | double | Espectro ETC, periodo tc en segundos; nulo si la zona requiere estudio particular. | silver_el_equipo_seismic_zones |
+| `requires_site_study` | boolean | Verdadero si la zona requiere estudio particular de sitio (sin valores ETC). | silver_el_equipo_seismic_zones |
+| `is_liquefaction_susceptible` | boolean | Verdadero si el suelo de la zona es susceptible a licuación. | silver_el_equipo_seismic_zones |
+| `has_lateral_spread_risk` | boolean | Verdadero si la zona tiene riesgo de corrimiento lateral. | silver_el_equipo_seismic_zones |
+| `building_count` | bigint | Número de edificios del mapa asignados a este polígono (0 si ninguno). | conteo sobre gold_el_equipo_map_buildings por seismic_zone_id |
+| `damaged_building_pct` | double | Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. | derivado de gold_el_equipo_map_buildings |
+| `geom_wkt` | string | Geometría de la zona en WKT, EPSG:4326 (lon, lat). | silver_el_equipo_seismic_zones |
+
+### `gold_el_equipo_map_facilities`
+
+Equipamientos del IDESC dentro del área de estudio (bbox de los edificios ampliado 2.000 m): salud, bomberos y Defensa Civil, policía, colegios y espacio público de encuentro. Una fila por equipamiento; capa de contexto para el mapa.
+
+- **Grano:** Un equipamiento dentro del área de estudio (`is_in_study_area`).
+- **Llave:** `facility_id`.
+- **Fuente:** `silver_el_equipo_facilities` filtrada por `is_in_study_area`.
+- **Notebook:** `src/gold/gold_map_and_summaries.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `facility_id` | string | Identificador del equipamiento, formato '<capa>.<id del WFS>'. | silver_el_equipo_facilities |
+| `facility_type_code` | string | Tipo unificado: health, emergency, police, school u open_space. | silver_el_equipo_facilities |
+| `facility_subtype` | string | Subtipo original (categoría de salud, tipo de seguridad, estado del colegio o tipo de espacio público); nulo si venía vacío. | silver_el_equipo_facilities |
+| `facility_name` | string | Nombre del equipamiento; nulo si venía vacío. | silver_el_equipo_facilities |
+| `is_hospital` | boolean | Verdadero si es de salud con categoría 'Hospitales - Hospitalización'. | silver_el_equipo_facilities |
+| `care_level` | int | Nivel de atención de salud (1, 2 o 3); nulo si no es de salud o no tiene nivel. | silver_el_equipo_facilities |
+| `enrollment_count` | int | Matrícula total de la sede educativa, en estudiantes; nulo si no es colegio. | silver_el_equipo_facilities |
+| `lon` | double | Longitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. | silver_el_equipo_facilities |
+| `lat` | double | Latitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. | silver_el_equipo_facilities |
+| `geom_wkt` | string | Geometría del equipamiento en WKT, EPSG:4326 (lon, lat). | silver_el_equipo_facilities |
 
 ### `gold_el_equipo_commune_summary`
 
@@ -764,4 +814,10 @@ Resumen del daño por zona de microzonificación sísmica (agrupado por nombre d
 
 ## Export
 
-`export/gold_el_equipo_map_buildings.geojson` en el volumen: las filas de `gold_el_equipo_map_buildings` como GeoJSON en EPSG:4326 (`[lon, lat]`), con `geom_wkt` convertido en geometría. Las propiedades incluyen las del mapa (zona sísmica y distancias a equipamientos, con las distancias redondeadas a metros enteros). Lo genera `src/export/export_geojson.py`.
+`src/export/export_geojson.py` escribe tres archivos en `export/` del volumen, todos en EPSG:4326 (`[lon, lat]`), con `geom_wkt` convertido en geometría y el resto de columnas como propiedades:
+
+- `gold_el_equipo_map_buildings.geojson`: las filas de `gold_el_equipo_map_buildings` (5.146), con zona sísmica, prioridad ante réplicas (`aftershock_priority_code`, `has_aggravating_factor`, `priority_color_hex`) y las distancias a equipamientos redondeadas a metros enteros.
+- `gold_el_equipo_map_seismic_zones.geojson`: las filas de `gold_el_equipo_map_seismic_zones`, con `etc_*` a 2 decimales y `damaged_building_pct` a 1.
+- `gold_el_equipo_map_facilities.geojson`: las filas de `gold_el_equipo_map_facilities`.
+
+Cada archivo se valida con su conteo esperado y con coordenadas dentro de lon −76,7 a −76,4 y lat 3,2 a 3,6.
