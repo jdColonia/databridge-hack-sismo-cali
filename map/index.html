@@ -281,8 +281,9 @@ function wrap(ctx, text, x, y, maxW, lh){
   ctx.fillText(line,x,y); return y+lh;
 }
 function rrect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-function exportPng(){
-  try{ overlay._deck && overlay._deck.redraw('export'); }catch(e){}
+// El canvas WebGL solo es legible dentro del evento 'render' (después el buffer se limpia)
+function exportPng(){ map.once('render', composePng); map.triggerRepaint(); }
+function composePng(){
   const mc = map.getCanvas();
   const dc = null; // modo interleaved: deck dibuja dentro del canvas de MapLibre
   const W=mc.width, H=mc.height, k=W/mc.clientWidth;
