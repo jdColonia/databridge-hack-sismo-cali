@@ -567,6 +567,7 @@ function select(id, fly){
       (p.seismic_zone_overlap_count>1?'<dt>Toca</dt><dd>'+p.seismic_zone_overlap_count+' microzonas</dd>':'')+
     '</dl><h2>Edificio</h2><dl>'+
       '<dt>Pisos</dt><dd>'+(p.floor_count==null?'sin dato':fmt(p.floor_count))+'</dd>'+
+      '<dt>Uso (catastro)</dt><dd>'+esc(p.land_use||'sin dato')+'</dd>'+
       '<dt>Huella</dt><dd>'+fmt(p.area_m2)+' m²</dd>'+
       '<dt>Área construida</dt><dd>'+fmt(p.built_area_m2)+' m²'+(p.floor_count==null?' (est.)':'')+'</dd>'+
       '<dt>Índice de escombros</dt><dd>'+(p.debris_index==null?'sin dato':dec(p.debris_index,2))+'</dd>'+
@@ -659,7 +660,7 @@ function facHtml(p){
 
 /* ---------- export ---------- */
 function exportCsv(){
-  const cols=['building_id','commune_name','neighborhood_name','structural_status','aftershock_priority_code','has_aggravating_factor','floor_count','area_m2','built_area_m2','seismic_zone_name','etc_sm_g','etc_tc_s','is_liquefaction_susceptible','requires_site_study','nearest_hospital_name','nearest_hospital_m','nearest_emergency_name','nearest_emergency_m','nearest_open_space_m','open_space_count_500m','lon','lat'];
+  const cols=['building_id','commune_name','neighborhood_name','structural_status','aftershock_priority_code','has_aggravating_factor','floor_count','land_use','area_m2','built_area_m2','seismic_zone_name','etc_sm_g','etc_tc_s','is_liquefaction_susceptible','requires_site_study','nearest_hospital_name','nearest_hospital_m','nearest_emergency_name','nearest_emergency_m','nearest_open_space_m','open_space_count_500m','lon','lat'];
   const q=v=>{ if(v==null) return ''; const s=String(v); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
   const rows=filtered.map(p=>cols.map(c=>c==='lon'?p.c&&p.c[0].toFixed(6):c==='lat'?p.c&&p.c[1].toFixed(6):c==='area_m2'||c==='built_area_m2'?Math.round(p[c]):p[c]).map(q).join(','));
   download(new Blob(['﻿'+cols.join(',')+'\n'+rows.join('\n')],{type:'text/csv;charset=utf-8'}),'edificios_filtrados_el_equipo.csv');
