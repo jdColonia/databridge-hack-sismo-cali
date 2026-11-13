@@ -14,9 +14,10 @@ ChartDB no tiene conector para Databricks: solo importa desde PostgreSQL, MySQL,
 
 | Ruta | Qué es |
 | ---- | ------ |
-| `docs/diagrams/<nombre>.dbml` | Diagramas fuente (uno por vista: medallion completo, modelo estrella de gold, etc.) |
-| `docs/diagrams/relaciones_logicas.json` | Opcional (se crea con el primer diagrama): relaciones de linaje entre capas (bronze → silver → gold) que no existen como FK en Databricks |
-| `docs/diagrams/img/` | Exportes PNG/SVG desde ChartDB, para el README y las diapositivas |
+| `docs/diagrams/<nombre>.dbml` | Diagramas fuente, uno por vista: `medallion_overview` (las tablas con llaves y relaciones), `silver_gold_model` (modelo analítico con todas las columnas) y `bronze_sources` (esquema crudo de cada fuente) |
+| `docs/diagrams/relaciones_logicas.json` | Relaciones de linaje entre capas (bronze → silver → gold) y cruces dentro de cada capa, que no existen como FK en Databricks. Lo usan los dos generadores |
+| `docs/diagrams/img/` | Exportes PNG desde ChartDB (escala 4x), enlazados desde el README y para las diapositivas |
+| `scripts/diagrams/dictionary_to_dbml.py` | Genera DBML desde `docs/data_dictionary.md` (`--layers`, `--keys-only`): sirve mientras las tablas están en diseño o sin correr |
 | `scripts/diagrams/catalog_to_dbml.py` | Genera DBML desde Unity Catalog (Databricks CLI, sin SQL warehouse) |
 | `scripts/diagrams/chartdb.sh` | Levanta ChartDB local en Docker (`up`, `down`, `status`) |
 | `tools/diagrams/` | Validador: reproduce la importación de ChartDB 1.21.0 con `@dbml/core` 3.14.1 (la versión que usa ChartDB) |
@@ -42,7 +43,13 @@ Alternativa sin Docker: [app.chartdb.io](https://app.chartdb.io) (la importació
          --out docs/diagrams/catalogo_dev.dbml
      ```
      Usa `--schema default` solo para documentar producción.
-   - A mano desde el código de `src/` cuando la tabla todavía no se ha corrido (diseño). Mantén los nombres y tipos exactos del notebook.
+   - Desde el diccionario de datos cuando la tabla todavía no se ha corrido (diseño). Así se generan los diagramas actuales:
+     ```bash
+     python3 scripts/diagrams/dictionary_to_dbml.py --keys-only --out docs/diagrams/medallion_overview.dbml
+     python3 scripts/diagrams/dictionary_to_dbml.py --layers silver,gold --out docs/diagrams/silver_gold_model.dbml
+     python3 scripts/diagrams/dictionary_to_dbml.py --layers bronze --out docs/diagrams/bronze_sources.dbml
+     ```
+     Una relación nueva entre tablas se agrega en `relaciones_logicas.json` (`from`, `to`, `type` `-` o `>`, `note`).
 2. **Validar** (falla con línea y columna si hay error):
    ```bash
    node tools/diagrams/validate_dbml.mjs docs/diagrams

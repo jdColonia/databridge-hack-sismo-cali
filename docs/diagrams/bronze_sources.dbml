@@ -1,0 +1,274 @@
+// Bronze: esquema crudo de cada fuente (hackathon, IDESC, USGS y manual).
+// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 7a82621).
+// No editar a mano: cambia el diccionario o docs/diagrams/relaciones_logicas.json y regenera.
+// Las tablas viven en workspace.<schema>: dev_<usuario> en desarrollo, default en produccion.
+// Ninguna relacion es FK declarada en Unity Catalog: son linaje y cruces logicos.
+
+Project el_equipo_medallion {
+  database_type: 'Generic'
+  Note: 'Databricks Free Edition, Unity Catalog y Delta. Job el_equipo_medallion: setup_volume > bronze (hackathon, IDESC, USGS, manual) > silver (referencias, edificios, microzonas, equipamientos) > gold_map_and_summaries > export_geojson.'
+}
+
+Table bronze_el_equipo_hackathon_buildings [headercolor: #B87333] {
+  OBJECTID bigint [pk, note: 'Identificador único del edificio (1 a 5.146)']
+  OBJECTID_1 bigint [note: 'Segundo identificador; 100 % nulo']
+  DEPAPRED string [note: 'Código del departamento (76 = Valle del Cauca)']
+  MUNIPRED string [note: 'Código del municipio (001 = Santiago de Cali)']
+  TIPO_AVALU string [note: 'Tipo de avalúo / zona']
+  SECTOR string [note: 'Sector catastral']
+  COMUNA string [note: 'Comuna catastral; puede venir con espacios']
+  BARRIO string [note: 'Barrio catastral; se repite entre comunas']
+  MANZANA string [note: 'Manzana catastral']
+  TERRENO string [note: 'Terreno (lote); puede venir con espacios']
+  COND string [note: 'Condición de la propiedad']
+  EDIFPRED string [note: 'Edificio dentro del predio; puede venir con espacios']
+  PREDIO string [note: 'Predio dentro del terreno']
+  NUMEPRED string [note: 'Número del predio; puede venir con espacios']
+  NPISOS bigint [note: 'Número de pisos; 0 en 1.234 edificios (dato faltante)']
+  ID_PREDIO string [note: 'Identificador del predio en el catastro; nulo o 0 en 3.206 edificios']
+  Indice_Escombros double [note: 'Índice de escombros satelital']
+  Estado_Estructural string [note: 'Estado estructural inferido por satélite, en texto']
+  Shape__Area double [note: 'Área en grados² (no sirve como medida)']
+  Shape__Length double [note: 'Perímetro en grados (no sirve como medida)']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  Note: 'Grano: un feature del GeoJSON (5.146 filas × 21 columnas). | Llave: OBJECTID. | Fuente: Datosprediales.json del hackathon, volumen /Volumes/<catalog>/<raw_schema>/<volume>/.'
+}
+
+Table bronze_el_equipo_idesc_communes [headercolor: #B87333] {
+  comcodigo string [pk, note: 'Código de la comuna']
+  comnombre string [note: 'Nombre de la comuna']
+  comacuerdo string [note: 'Enlace al acuerdo']
+  shape_leng double [note: 'Perímetro en el CRS original']
+  shape_area double [note: 'Área en el CRS original']
+  comconsul string [note: 'Enlace de consulta']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio)']
+  _queried_at string [note: 'Metadato de ingesta: fecha y hora de la consulta, del manifest.json']
+  Note: 'Grano: Una comuna (22). | Llave: comcodigo. | Fuente: IDESC dapm:pdt_dpa_comunas.'
+}
+
+Table bronze_el_equipo_idesc_neighborhoods [headercolor: #B87333] {
+  barcodigo string [pk, note: 'Código del barrio, 4 dígitos']
+  barnombre string [note: 'Nombre del barrio']
+  barcomuna string [note: 'Código de la comuna']
+  barcategor string [note: 'Categoría (barrio, sector...)']
+  barlimites string [note: 'Descripción de los límites']
+  barmapa string [note: 'Enlace al mapa del barrio']
+  baracusan string [note: 'Enlace al acuerdo']
+  shape_leng double [note: 'Perímetro en el CRS original']
+  shape_area double [note: 'Área en el CRS original']
+  barconsul string [note: 'Enlace de consulta']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio)']
+  _queried_at string [note: 'Metadato de ingesta: fecha y hora de la consulta, del manifest.json']
+  Note: 'Grano: Un barrio o sector DIVIPOLA (342). | Llave: barcodigo. | Fuente: IDESC dapm:pdt_dpa_barrios_sectores (Acuerdo 0636 de 2026).'
+}
+
+Table bronze_el_equipo_idesc_cadastre_neighborhoods [headercolor: #B87333] {
+  idbarrio string [note: 'Código comuna + barrio']
+  nom_barrio string [note: 'Nombre catastral del barrio']
+  comuna string [note: 'Código de la comuna, 2 dígitos']
+  barrio string [note: 'Código del barrio, 2 dígitos']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio)']
+  _queried_at string [note: 'Metadato de ingesta: fecha y hora de la consulta, del manifest.json']
+  indexes {
+    (comuna, barrio) [pk]
+  }
+  Note: 'Grano: Un código catastral de barrio (52). | Llave: comuna + barrio. | Fuente: IDESC catastro:cat_bas_terrenos.'
+}
+
+Table bronze_el_equipo_idesc_cadastre_parcels [headercolor: #B87333] {
+  id_predio bigint [note: 'Identificador del predio']
+  idbarrio string [note: 'Código comuna + barrio']
+  nom_barrio string [note: 'Nombre catastral del barrio']
+  comuna string [note: 'Comuna']
+  barrio string [note: 'Barrio']
+  manzana string [note: 'Manzana']
+  terreno string [note: 'Terreno']
+  condicion string [note: 'Condición de la propiedad']
+  edifpred string [note: 'Edificio dentro del predio']
+  pisopred string [note: 'Piso dentro del predio']
+  predio string [note: 'Predio']
+  npn string [note: 'Número Predial Nacional']
+  conexion string [note: 'Código de conexión del terreno']
+  direpred string [note: 'Dirección']
+  tipo_avalu string [note: 'Tipo de avalúo']
+  destinacio string [note: 'Destinación económica']
+  uso_princi string [note: 'Uso principal']
+  n_construc bigint [note: 'Número de construcciones']
+  total_pis1 bigint [note: 'Total de pisos']
+  area_cons1 double [note: 'Área construida en m²']
+  last_edite string [note: 'Fecha de última edición, texto con sufijo Z']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio)']
+  _queried_at string [note: 'Metadato de ingesta: fecha y hora de la consulta, del manifest.json']
+  Note: 'Grano: Un registro del catastro. | Llave: Sin llave única. | Fuente: IDESC catastro:cat_bas_terrenos, solo los predios de los edificios.'
+}
+
+Table bronze_el_equipo_manual_code_catalog [headercolor: #B87333] {
+  dominio string [note: 'Campo del dataset al que pertenece el código']
+  codigo string [note: 'Valor del código']
+  significado string [note: 'Significado; vacío si no está confirmado']
+  fuente string [note: 'Fuente que lo respalda']
+  enlace string [note: 'Enlace a la fuente']
+  estado string [note: 'Estado de verificación en español']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio)']
+  _queried_at string [note: 'Metadato de ingesta: fecha y hora de la consulta, del manifest.json']
+  indexes {
+    (dominio, codigo) [pk]
+  }
+  Note: 'Grano: Un código de un dominio. | Llave: dominio + codigo. | Fuente: reference/codigos_catastrales.csv (curado a mano, no es del IDESC).'
+}
+
+Table bronze_el_equipo_idesc_seismic_zones [headercolor: #B87333] {
+  feature_id string [pk, note: 'Identificador del feature en el WFS (zona_mzsc se repite)']
+  area double [note: 'Área en el CRS original de la capa (no sirve como medida)']
+  perimeter double [note: 'Perímetro en el CRS original de la capa']
+  mcooiiain_ bigint [note: 'Columna basura del origen; se descarta en silver']
+  mcooiiain1 bigint [note: 'Columna basura del origen; se descarta en silver']
+  mcooiiai_1 double [note: 'Columna basura del origen; se descarta en silver']
+  mcooiiai_2 double [note: 'Columna basura del origen; se descarta en silver']
+  zona_mzsc string [note: 'Nombre de la zona de microzonificación (ej. \'Zona 4C\'); se repite en varios polígonos']
+  label string [note: 'Etiqueta de la zona en la capa']
+  am_etc double [note: 'Espectro ETC, aceleración máxima (g); 0 significa estudio particular']
+  sm_etc double [note: 'Espectro ETC, aceleración de la meseta (g); 0 significa estudio particular']
+  to_etc double [note: 'Espectro ETC, periodo t0 (s); 0 significa estudio particular']
+  tc_etc double [note: 'Espectro ETC, periodo tc (s); 0 significa estudio particular']
+  tl_etc double [note: 'Espectro ETC, periodo tl (s); 0 significa estudio particular']
+  am_etl string [note: 'Espectro ETL, aceleración máxima (g), como texto; casi siempre nulo']
+  sm_etl string [note: 'Espectro ETL, aceleración de la meseta (g), como texto; casi siempre nulo']
+  to_etl string [note: 'Espectro ETL, periodo t0 (s), como texto; casi siempre nulo']
+  tc_etl string [note: 'Espectro ETL, periodo tc (s), como texto; casi siempre nulo']
+  tl_etl string [note: 'Espectro ETL, periodo tl (s), como texto; casi siempre nulo']
+  sucep_licu bigint [note: 'Susceptibilidad a licuación (1 = susceptible)']
+  corrim_lat bigint [note: 'Riesgo de corrimiento lateral (1 = hay riesgo)']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  _source_url string [note: 'Metadato de ingesta: URL del WFS consultado']
+  _load_origin string [note: 'Metadato de ingesta: wfs o volume_copy']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta (de la copia, su fecha de modificación)']
+  Note: 'Grano: Un polígono de microzonificación sísmica (16 filas × 25 columnas). | Llave: feature_id (zona_mzsc se repite). | Fuente: IDESC idesc:mc_microzonificacion_sismica (WFS). Conserva las 20 propiedades originales con sus nombres originales; las medidas son double y las *_etl quedan como texto.'
+}
+
+Table bronze_el_equipo_idesc_health_facilities [headercolor: #B87333] {
+  feature_id string [pk, note: 'Identificador del feature en el WFS']
+  categoria string [note: 'Categoría del equipamiento de salud (ej. \'Hospitales - Hospitalización\')']
+  nombre string [note: 'Nombre']
+  localizaci string [note: 'Dirección o localización']
+  nivel string [note: 'Nivel de atención']
+  propiedad string [note: 'Propiedad (PUB o PRIV)']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: wfs o volume_copy']
+  Note: 'Grano: Un elemento de la capa. | Llave: feature_id. | Fuente: IDESC pot_2014:eqp_uco_salud (WFS). | Ademas: (otras propiedades): El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga)'
+}
+
+Table bronze_el_equipo_idesc_security_facilities [headercolor: #B87333] {
+  feature_id string [pk, note: 'Identificador del feature en el WFS']
+  tipo string [note: 'Tipo (CAI, estación, bomberos, Defensa Civil...)']
+  nombre string [note: 'Nombre']
+  localizaci string [note: 'Dirección o localización']
+  propiedad string [note: 'Propiedad (PUB o PRIV)']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: wfs o volume_copy']
+  Note: 'Grano: Un elemento de la capa. | Llave: feature_id. | Fuente: IDESC pot_2014:eqp_uba_seguridad_ciudadana (WFS). | Ademas: (otras propiedades): El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga)'
+}
+
+Table bronze_el_equipo_idesc_schools [headercolor: #B87333] {
+  feature_id string [pk, note: 'Identificador del feature en el WFS']
+  eeestado string [note: 'Estado de la sede (ej. \'Oficial\')']
+  eenomsede string [note: 'Nombre de la sede']
+  eedirecc string [note: 'Dirección']
+  ieomatrtot string [note: 'Matrícula total']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: wfs o volume_copy']
+  Note: 'Grano: Un elemento de la capa. | Llave: feature_id. | Fuente: IDESC educacion:esf_establecimiento_educativo (WFS). | Ademas: (otras propiedades): El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga)'
+}
+
+Table bronze_el_equipo_idesc_public_spaces [headercolor: #B87333] {
+  feature_id string [pk, note: 'Identificador del feature en el WFS']
+  ecrpotele string [note: 'Tipo de elemento de espacio público (POT)']
+  ecrnomcom string [note: 'Nombre común']
+  ecrdirecci string [note: 'Dirección']
+  geometry string [note: 'Geometría GeoJSON como texto, EPSG:4326 (lon, lat)']
+  _source_url string [note: 'Metadato de ingesta: URL de la capa consultada']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: wfs o volume_copy']
+  Note: 'Grano: Un elemento de la capa. | Llave: feature_id. | Fuente: IDESC dapm:pdt_pmep_encuentro (WFS). | Ademas: (otras propiedades): El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga)'
+}
+
+Table bronze_el_equipo_usgs_earthquakes [headercolor: #B87333] {
+  event_id string [pk, note: 'Identificador del evento en el USGS']
+  magnitude double [note: 'Magnitud']
+  magnitude_type string [note: 'Tipo de magnitud (mww, mb...)']
+  place string [note: 'Descripción del lugar']
+  event_time timestamp [note: 'Hora del evento, UTC']
+  depth_km double [note: 'Profundidad en km']
+  lon double [note: 'Longitud en grados']
+  lat double [note: 'Latitud en grados']
+  event_type string [note: 'Tipo de evento según el USGS']
+  status string [note: 'Estado de revisión']
+  url string [note: 'Página del evento en el USGS']
+  is_mainshock boolean [note: 'Verdadero para el sismo principal us6000tjl2']
+  _source_url string [note: 'Metadato de ingesta: URL de la consulta a la API']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: de dónde se leyó el crudo (wfs o volume_copy para el IDESC; api o volume_copy para el USGS)']
+  Note: 'Grano: Un sismo (sismo principal más réplicas M ≥ 3,5 dentro del círculo oficial de la secuencia). | Llave: event_id. | Fuente: USGS, API FDSN event/1/query (evento us6000tjl2).'
+}
+
+Table bronze_el_equipo_usgs_aftershock_forecast [headercolor: #B87333] {
+  forecast_created_at timestamp [note: 'Fecha de creación del pronóstico, UTC']
+  advisory_time_frame string [note: 'Periodo de validez del aviso']
+  window_label string [note: 'Ventana: 1 Day, 1 Week, 1 Month o 1 Year']
+  window_start_at timestamp [note: 'Inicio de la ventana, UTC']
+  window_end_at timestamp [note: 'Fin de la ventana, UTC']
+  min_magnitude double [note: 'Magnitud mínima de la réplica (3 a 7)']
+  probability double [note: 'Probabilidad (0 a 1, tal como la publica el USGS) de al menos una réplica de esa magnitud en la ventana']
+  expected_count_median bigint [note: 'Mediana del número esperado de réplicas']
+  expected_count_p95_min bigint [note: 'Límite inferior del rango del 95 % del número esperado']
+  expected_count_p95_max bigint [note: 'Límite superior del rango del 95 % del número esperado']
+  _source_url string [note: 'Metadato de ingesta: URL del forecast.json']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la consulta']
+  _load_origin string [note: 'Metadato de ingesta: de dónde se leyó el crudo (wfs o volume_copy para el IDESC; api o volume_copy para el USGS)']
+  indexes {
+    (window_label, min_magnitude) [pk]
+  }
+  Note: 'Grano: Una combinación de ventana de tiempo y magnitud mínima del pronóstico (4 ventanas × 5 magnitudes = 20). | Llave: window_label + min_magnitude. | Fuente: USGS, producto oaf del evento us6000tjl2 (forecast.json, modelo ETAS).'
+}
+
+Table bronze_el_equipo_manual_official_impact [headercolor: #B87333] {
+  metric_code string [pk, note: 'Código de la métrica (deaths, injured, rescued, missing, total_collapses, collapsed_buildings)']
+  metric_name string [note: 'Nombre de la métrica']
+  value double [note: 'Valor']
+  unit string [note: 'Unidad']
+  scope string [note: 'Alcance geográfico']
+  source_name string [note: 'Fuente']
+  source_url string [note: 'Enlace a la fuente; vacío si no se encontró']
+  cutoff_date string [note: 'Fecha de corte; vacía si no se conoce']
+  verification_status string [note: 'Estado de verificación en español (verificada o por verificar)']
+  note string [note: 'Nota sobre la cifra']
+  _source_url string [note: 'Metadato de ingesta: ruta del CSV en el repositorio']
+  _queried_at timestamp [note: 'Metadato de ingesta: fecha y hora (UTC) de la carga']
+  Note: 'Grano: Una métrica oficial de impacto (6). | Llave: metric_code. | Fuente: reference/official_impact.csv (curado a mano: Alcaldía de Santiago de Cali, repositorio oficial, corte 16 oct 2026; la cifra de 308 edificaciones colapsadas atribuida a UNGRD/DANE queda \'por verificar\' porque no se encontró la fuente).'
+}
+
+TableGroup bronze [color: #B87333] {
+  bronze_el_equipo_hackathon_buildings
+  bronze_el_equipo_idesc_communes
+  bronze_el_equipo_idesc_neighborhoods
+  bronze_el_equipo_idesc_cadastre_neighborhoods
+  bronze_el_equipo_idesc_cadastre_parcels
+  bronze_el_equipo_manual_code_catalog
+  bronze_el_equipo_idesc_seismic_zones
+  bronze_el_equipo_idesc_health_facilities
+  bronze_el_equipo_idesc_security_facilities
+  bronze_el_equipo_idesc_schools
+  bronze_el_equipo_idesc_public_spaces
+  bronze_el_equipo_usgs_earthquakes
+  bronze_el_equipo_usgs_aftershock_forecast
+  bronze_el_equipo_manual_official_impact
+  Note: 'Bronze: dato crudo tal como llega, con metadatos de ingesta'
+}

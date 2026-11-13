@@ -1,0 +1,382 @@
+// Modelo silver y gold: 17 tablas con columnas completas, llaves y cruces.
+// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 7a82621).
+// No editar a mano: cambia el diccionario o docs/diagrams/relaciones_logicas.json y regenera.
+// Las tablas viven en workspace.<schema>: dev_<usuario> en desarrollo, default en produccion.
+// Ninguna relacion es FK declarada en Unity Catalog: son linaje y cruces logicos.
+
+Project el_equipo_medallion {
+  database_type: 'Generic'
+  Note: 'Databricks Free Edition, Unity Catalog y Delta. Job el_equipo_medallion: setup_volume > bronze (hackathon, IDESC, USGS, manual) > silver (referencias, edificios, microzonas, equipamientos) > gold_map_and_summaries > export_geojson.'
+}
+
+Table silver_el_equipo_communes [headercolor: #8A8D91] {
+  commune_code string [pk, note: 'Código de la comuna, 2 dígitos con cero a la izquierda (ej. \'03\'). Origen: IDESC dapm:pdt_dpa_comunas, campo comcodigo.']
+  commune_name string [note: 'Nombre oficial de la comuna (ej. \'Comuna 03\'). Origen: IDESC, campo comnombre.']
+  agreement_url string [note: 'Enlace al acuerdo municipal que define la comuna (Acuerdo 0636 de 2026). Origen: IDESC, campo comacuerdo.']
+  geom_wkt string [note: 'Polígono de la comuna en WKT, EPSG:4326 (lon, lat). Origen: geometría de IDESC.']
+  Note: 'Las 22 comunas de Cali según la DIVIPOLA 2026 (Acuerdo 0636), una fila por comuna, con geometría. Fuente: IDESC. | Grano: Una comuna. | Llave: commune_code. | Fuente: IDESC dapm:pdt_dpa_comunas vía bronze_el_equipo_idesc_communes. | Notebook: src/silver/silver_references.py.'
+}
+
+Table silver_el_equipo_neighborhoods [headercolor: #8A8D91] {
+  neighborhood_code string [pk, note: 'Código oficial del barrio, 4 dígitos \'CCBB\' (comuna + barrio, sin guion, ej. \'1931\'). Origen: IDESC dapm:pdt_dpa_barrios_sectores, campo barcodigo.']
+  neighborhood_name string [note: 'Nombre oficial del barrio o sector. Origen: IDESC, campo barnombre.']
+  neighborhood_category string [note: 'Categoría del polígono (ej. \'Barrio\', \'Sector\'). Origen: IDESC, campo barcategor.']
+  commune_code string [note: 'Código de la comuna a la que pertenece el barrio, 2 dígitos. Origen: primeros 2 dígitos de neighborhood_code.']
+  commune_name string [note: 'Nombre oficial de la comuna. Origen: silver_el_equipo_communes por commune_code.']
+  agreement_url string [note: 'Enlace al acuerdo municipal que define el barrio (Acuerdo 0636 de 2026). Origen: IDESC, campo baracusan.']
+  geom_wkt string [note: 'Polígono del barrio en WKT, EPSG:4326 (lon, lat). Origen: geometría de IDESC.']
+  Note: 'Los 342 barrios y sectores oficiales de Cali (DIVIPOLA 2026, Acuerdo 0636), una fila por barrio, con su comuna y geometría. Fuente: IDESC. | Grano: Un barrio o sector oficial (342). | Llave: neighborhood_code. | Fuente: IDESC dapm:pdt_dpa_barrios_sectores (DIVIPOLA 2026) vía bronze_el_equipo_idesc_neighborhoods. | Notebook: src/silver/silver_references.py.'
+}
+
+Table silver_el_equipo_cadastre_neighborhoods [headercolor: #8A8D91] {
+  cadastral_neighborhood_code string [pk, note: 'Código catastral del barrio, 4 dígitos \'CCBB\' (comuna + barrio, sin guion). Origen: IDESC catastro:cat_bas_terrenos, campos comuna y barrio.']
+  cadastral_neighborhood_name string [note: 'Nombre del barrio según el catastro. Origen: IDESC catastro, campo nom_barrio.']
+  Note: 'Nombre que el catastro da a cada código de barrio \'CCBB\' presente en el dataset de edificios (52 códigos). Auxiliar: sirve para los códigos que la DIVIPOLA 2026 cambió u omitió. Fuente: IDESC catastro. | Grano: Un código catastral de barrio de los edificios (52). | Llave: cadastral_neighborhood_code. | Fuente: IDESC catastro:cat_bas_terrenos vía bronze_el_equipo_idesc_cadastre_neighborhoods. | Notebook: src/silver/silver_references.py.'
+}
+
+Table silver_el_equipo_cadastre_parcels [headercolor: #8A8D91] {
+  parcel_id bigint [note: 'Identificador del predio en el catastro. Origen: IDESC catastro:cat_bas_terrenos, campo id_predio.']
+  national_parcel_number string [note: 'Número Predial Nacional (30 dígitos). Origen: IDESC catastro, campo npn.']
+  connection_code string [note: 'Código de conexión del terreno: comuna + barrio + manzana + predio (12 dígitos). Origen: IDESC catastro, campo conexion.']
+  land_use string [note: 'Uso principal del predio (ej. \'RESIDENCIAL\'). Origen: IDESC catastro, campo uso_princi.']
+  economic_destination_code string [note: 'Código de destinación económica del predio (ej. \'A\'). Origen: IDESC catastro, campo destinacio.']
+  cadastre_floor_count int [note: 'Número de pisos según el catastro. Origen: IDESC catastro, campo total_pis1.']
+  cadastre_built_area_m2 double [note: 'Área construida según el catastro, en m². Origen: IDESC catastro, campo area_cons1.']
+  address string [note: 'Dirección del predio según el catastro. Origen: IDESC catastro, campo direpred.']
+  cadastre_edited_date date [note: 'Fecha de última edición del registro catastral. Origen: IDESC catastro, campo last_edite (primeros 10 caracteres).']
+  construction_count int [note: 'Número de construcciones registradas en el predio. Origen: IDESC catastro, campo n_construc.']
+  Note: 'Registros del catastro de Cali (terrenos) que corresponden a los edificios del dataset, buscados por id_predio y por conexion. Puede haber varios registros por parcel_id o connection_code (varias unidades por terreno). Fuente: IDESC catastro. | Grano: Un registro del catastro (pueden repetirse parcel_id y connection_code). | Llave: Sin llave única. | Fuente: IDESC catastro:cat_bas_terrenos vía bronze_el_equipo_idesc_cadastre_parcels. | Notebook: src/silver/silver_references.py.'
+}
+
+Table silver_el_equipo_code_catalog [headercolor: #8A8D91] {
+  domain string [note: 'Campo del dataset al que pertenece el código (ej. \'TIPO_AVALU\'). Origen: reference/codigos_catastrales.csv, columna dominio.']
+  code string [note: 'Valor del código tal como aparece en el dataset (ej. \'01\'). Origen: CSV, columna codigo.']
+  meaning string [note: 'Significado del código; nulo si no está confirmado en una fuente. Origen: CSV, columna significado.']
+  source string [note: 'Nombre de la fuente que respalda el significado. Origen: CSV, columna fuente.']
+  source_url string [note: 'Enlace a la fuente que respalda el significado. Origen: CSV, columna enlace.']
+  verification_status string [note: 'Estado de verificación: \'verified\' o \'pending_verification\'. Origen: CSV, columna estado traducida.']
+  indexes {
+    (domain, code) [pk]
+  }
+  Note: 'Significado de los códigos catastrales del dataset (DEPAPRED, MUNIPRED, TIPO_AVALU, SECTOR, COND) con su fuente y estado de verificación. Los significados no confirmados quedan vacíos. Fuente: curada a mano (reference/codigos_catastrales.csv). | Grano: Un código de un dominio. | Llave: domain + code. | Fuente: reference/codigos_catastrales.csv vía bronze_el_equipo_manual_code_catalog. | Notebook: src/silver/silver_references.py.'
+}
+
+Table silver_el_equipo_buildings [headercolor: #8A8D91] {
+  building_id bigint [pk, note: 'Identificador único del edificio (1 a 5.146). Origen: bronze, OBJECTID.']
+  department_code string [note: 'Código DANE del departamento (76 = Valle del Cauca). Origen: bronze, DEPAPRED.']
+  municipality_code string [note: 'Código DANE del municipio (001 = Santiago de Cali). Origen: bronze, MUNIPRED.']
+  zone_type_code string [note: 'Código del tipo de avalúo / zona (ej. \'01\' urbana). Origen: bronze, TIPO_AVALU.']
+  sector_code string [note: 'Código del sector catastral. Origen: bronze, SECTOR.']
+  cadastral_commune_code string [note: 'Código catastral de la comuna, 2 dígitos; nulo en 2 edificios. Origen: bronze, COMUNA.']
+  cadastral_neighborhood_code string [note: 'Código catastral del barrio, 4 dígitos \'CCBB\' (comuna + barrio, sin guion); puede no coincidir con el oficial de 2026. Origen: bronze, COMUNA + BARRIO.']
+  block_code string [note: 'Código catastral de la manzana, 4 dígitos. Origen: bronze, MANZANA.']
+  cadastral_block_code string [note: 'Código catastral de manzana completo \'CCBBMMMM\' (8 dígitos); nulo si falta un componente. Origen: bronze, COMUNA + BARRIO + MANZANA.']
+  lot_code string [note: 'Código del terreno (lote) dentro de la manzana; nulo si venía vacío. Origen: bronze, TERRENO.']
+  ownership_condition_code string [note: 'Código de condición de la propiedad (ej. propiedad horizontal); nulo si venía vacío. Origen: bronze, COND.']
+  building_code string [note: 'Código del edificio dentro del predio; nulo si venía vacío. Origen: bronze, EDIFPRED.']
+  parcel_code string [note: 'Código del predio dentro del terreno. Origen: bronze, PREDIO.']
+  parcel_number string [note: 'Número del predio; nulo si venía vacío. Origen: bronze, NUMEPRED.']
+  parcel_id bigint [note: 'Identificador del predio en el catastro; nulo si venía vacío o en 0. Origen: bronze, ID_PREDIO.']
+  floor_count_raw string [note: 'Número de pisos tal como venía, incluidos los ceros. Origen: bronze, NPISOS.']
+  floor_count bigint [note: 'Número de pisos válido (mayor que 0); nulo si el dato falta. Origen: derivado de NPISOS.']
+  is_floor_count_missing boolean [note: 'Verdadero si no hay número de pisos válido (floor_count nulo). Origen: derivado de NPISOS.']
+  debris_index double [note: 'Índice de escombros satelital. Origen: bronze, Indice_Escombros.']
+  structural_status string [note: 'Estado estructural inferido por satélite, texto original en español. Origen: bronze, Estado_Estructural.']
+  structural_status_code string [note: 'Estado estructural codificado: no_change, roof_loss, debris o no_data. Origen: derivado de structural_status.']
+  damage_level bigint [note: 'Nivel de daño ordinal: 0 no_change, 1 roof_loss, 2 debris; nulo si no hay datos. Origen: derivado de structural_status_code.']
+  has_satellite_data boolean [note: 'Verdadero si el edificio tiene datos satelitales (estado distinto de no_data). Origen: derivado de structural_status_code.']
+  area_m2 double [note: 'Área de la huella en m² calculada en EPSG:9377. Origen: geometría reproyectada.']
+  perimeter_m double [note: 'Perímetro de la huella en m calculado en EPSG:9377. Origen: geometría reproyectada.']
+  built_area_m2 double [note: 'Área construida estimada en m²: area_m2 por floor_count (1 piso si falta). Origen: derivado de area_m2 y floor_count.']
+  is_built_area_estimated boolean [note: 'Verdadero si built_area_m2 asumió 1 piso por falta de floor_count. Origen: derivado de floor_count.']
+  is_geometry_valid boolean [note: 'Verdadero si la geometría original era válida. Origen: validación con shapely.']
+  is_geometry_repaired boolean [note: 'Verdadero si la geometría original era inválida y se reparó con make_valid. Origen: validación con shapely.']
+  is_suspect_polygon boolean [note: 'Verdadero si el polígono es dudoso: área menor de 5 m², mayor de 50.000 m² o vacío. No se elimina. Origen: derivado de area_m2.']
+  lon double [note: 'Longitud del centroide en grados, EPSG:4326. Origen: centroide calculado en EPSG:9377.']
+  lat double [note: 'Latitud del centroide en grados, EPSG:4326. Origen: centroide calculado en EPSG:9377.']
+  geom_wkt string [note: 'Geometría del edificio en WKT, EPSG:4326 (lon, lat), ya reparada. Origen: bronze, geometry.']
+  commune_code string [note: 'Código oficial de la comuna (2 dígitos) según la ubicación del centroide. Origen: cruce espacial con silver_el_equipo_neighborhoods (DIVIPOLA 2026).']
+  commune_name string [note: 'Nombre oficial de la comuna según la ubicación. Origen: silver_el_equipo_neighborhoods.']
+  neighborhood_code string [note: 'Código oficial del barrio (4 dígitos \'CCBB\') según la ubicación del centroide. Origen: cruce espacial con silver_el_equipo_neighborhoods (DIVIPOLA 2026).']
+  neighborhood_name string [note: 'Nombre oficial del barrio según la ubicación. Origen: silver_el_equipo_neighborhoods.']
+  cadastral_neighborhood_name string [note: 'Nombre del barrio según el código catastral (DIVIPOLA si el código existe, si no el del catastro); nulo si no hay código. Origen: silver_el_equipo_neighborhoods y silver_el_equipo_cadastre_neighborhoods.']
+  is_neighborhood_code_current boolean [note: 'Verdadero si el código catastral del barrio coincide con el oficial; nulo si falta alguno. Origen: cadastral_neighborhood_code = neighborhood_code.']
+  national_parcel_number string [note: 'Número Predial Nacional (30 dígitos) del catastro; nulo si no hay match. Origen: silver_el_equipo_cadastre_parcels.']
+  land_use string [note: 'Uso principal del predio según el catastro (ej. \'RESIDENCIAL\'). Origen: silver_el_equipo_cadastre_parcels.']
+  economic_destination_code string [note: 'Código de destinación económica del predio según el catastro. Origen: silver_el_equipo_cadastre_parcels.']
+  cadastre_floor_count int [note: 'Número de pisos según el catastro. Origen: silver_el_equipo_cadastre_parcels.']
+  cadastre_built_area_m2 double [note: 'Área construida según el catastro, en m². Origen: silver_el_equipo_cadastre_parcels.']
+  address string [note: 'Dirección del predio según el catastro. Origen: silver_el_equipo_cadastre_parcels.']
+  cadastre_edited_date date [note: 'Fecha de última edición del registro catastral. Origen: silver_el_equipo_cadastre_parcels.']
+  cadastre_match_method string [note: 'Cómo se unió con el catastro: parcel_id, connection (conexión única), ambiguous_connection (varias unidades, no se adivina) o no_match. Origen: derivado del cruce con silver_el_equipo_cadastre_parcels.']
+  Note: 'Edificios de Cali afectados por el sismo del 10 de agosto, una fila por edificio (5.146). Datos del hackathon limpios, geometría en EPSG:4326 con medidas en EPSG:9377, barrio y comuna oficiales por ubicación y datos del catastro. | Grano: Un edificio (5.146). | Llave: building_id. | Fuente: bronze_el_equipo_hackathon_buildings más cruces con silver_el_equipo_neighborhoods, silver_el_equipo_cadastre_neighborhoods y silver_el_equipo_cadastre_parcels. | Notebook: src/silver/silver_buildings.py.'
+}
+
+Table silver_el_equipo_neighborhood_crosswalk [headercolor: #8A8D91] {
+  cadastral_neighborhood_code string [note: 'Código catastral del barrio, 4 dígitos \'CCBB\'; nulo en los edificios sin comuna o barrio en el origen. Origen: silver_el_equipo_buildings.']
+  cadastral_neighborhood_name string [note: 'Nombre del barrio según el código catastral (DIVIPOLA si existe, si no el catastro). Origen: silver_el_equipo_buildings.']
+  neighborhood_code string [note: 'Código oficial del barrio (4 dígitos \'CCBB\') donde cae el centroide. Origen: silver_el_equipo_buildings (DIVIPOLA 2026).']
+  neighborhood_name string [note: 'Nombre oficial del barrio donde cae el centroide. Origen: silver_el_equipo_buildings (DIVIPOLA 2026).']
+  is_same_code boolean [note: 'Verdadero si el código catastral coincide con el oficial; nulo si no hay código catastral. Origen: cadastral_neighborhood_code = neighborhood_code.']
+  building_count bigint [note: 'Número de edificios del dataset con ese par de códigos. Origen: conteo sobre silver_el_equipo_buildings.']
+  indexes {
+    (cadastral_neighborhood_code, neighborhood_code) [pk]
+  }
+  Note: 'Equivalencia entre el código de barrio catastral de los edificios y el barrio oficial DIVIPOLA 2026 por ubicación, con el número de edificios de cada par. Los building_count suman los edificios con barrio oficial. | Grano: Un par código catastral → barrio oficial (54). | Llave: cadastral_neighborhood_code + neighborhood_code. | Fuente: silver_el_equipo_buildings. | Notebook: src/silver/silver_neighborhood_crosswalk.py.'
+}
+
+Table silver_el_equipo_seismic_zones [headercolor: #8A8D91] {
+  seismic_zone_id string [pk, note: 'Identificador del polígono (id del feature en el WFS del IDESC); es la llave, el nombre de zona se repite. Origen: bronze, feature_id.']
+  seismic_zone_name string [note: 'Nombre de la zona de microzonificación (ej. \'Zona 4C\'); puede repetirse (Zona 6 x2, Cauce Activo o Terra x3). Origen: bronze, zona_mzsc.']
+  etc_am_g double [note: 'Espectro ETC, aceleración máxima (am) en g; nulo si la zona requiere estudio particular. Origen: bronze, am_etc (0 pasa a nulo).']
+  etc_sm_g double [note: 'Espectro ETC, aceleración de la meseta espectral (sm) en g; nulo si la zona requiere estudio particular. Origen: bronze, sm_etc (0 pasa a nulo).']
+  etc_t0_s double [note: 'Espectro ETC, periodo t0 en segundos; nulo si la zona requiere estudio particular. Origen: bronze, to_etc (0 pasa a nulo).']
+  etc_tc_s double [note: 'Espectro ETC, periodo tc en segundos; nulo si la zona requiere estudio particular. Origen: bronze, tc_etc (0 pasa a nulo).']
+  etc_tl_s double [note: 'Espectro ETC, periodo tl en segundos; nulo si la zona requiere estudio particular. Origen: bronze, tl_etc (0 pasa a nulo).']
+  etl_am_g double [note: 'Espectro ETL, aceleración máxima (am) en g; solo Zona 4B, 5 y 4C, el resto nulo. Origen: bronze, am_etl (texto a double).']
+  etl_sm_g double [note: 'Espectro ETL, aceleración de la meseta espectral (sm) en g; solo Zona 4B, 5 y 4C, el resto nulo. Origen: bronze, sm_etl (texto a double).']
+  etl_t0_s double [note: 'Espectro ETL, periodo t0 en segundos; solo Zona 4B, 5 y 4C, el resto nulo. Origen: bronze, to_etl (texto a double).']
+  etl_tc_s double [note: 'Espectro ETL, periodo tc en segundos; solo Zona 4B, 5 y 4C, el resto nulo. Origen: bronze, tc_etl (texto a double).']
+  etl_tl_s double [note: 'Espectro ETL, periodo tl en segundos; solo Zona 4B, 5 y 4C, el resto nulo. Origen: bronze, tl_etl (texto a double).']
+  is_liquefaction_susceptible boolean [note: 'Verdadero si el suelo de la zona es susceptible a licuación. Origen: bronze, sucep_licu = 1.']
+  has_lateral_spread_risk boolean [note: 'Verdadero si la zona tiene riesgo de corrimiento lateral. Origen: bronze, corrim_lat = 1.']
+  requires_site_study boolean [note: 'Verdadero si la zona requiere estudio particular de sitio: todos los valores ETC venían en 0, que no significa aceleración nula. Origen: derivado de los ETC.']
+  area_m2 double [note: 'Área del polígono en m² recalculada en EPSG:9377. Origen: geometría reproyectada.']
+  geom_wkt string [note: 'Geometría de la zona en WKT, EPSG:4326 (lon, lat), reparada con make_valid si era inválida. Origen: bronze, geometry.']
+  Note: 'Zonas de la microzonificación sísmica de Cali, una fila por polígono (16). ETC y ETL son los dos espectros de la microzonificación sísmica (estudio INGEOMINAS–DAGMA 2005, Decreto 411.0.20.0158 de 2014); su significado exacto está por verificar en el decreto. Notación del estudio: am = aceleración máxima (g), sm = aceleración de la meseta espectral (g), t0/tc/tl = periodos (s). Un nombre de zona puede repetirse con distintos riesgos: la llave es seismic_zone_id. Origen: bronze_el_equipo_idesc_seismic_zones (IDESC, capa mc_microzonificacion_sismica). | Grano: Un polígono de microzonificación (16). | Llave: seismic_zone_id (el nombre de zona se repite). | Fuente: bronze_el_equipo_idesc_seismic_zones (IDESC idesc:mc_microzonificacion_sismica). | Notebook: src/silver/silver_seismic_zones.py.'
+}
+
+Table silver_el_equipo_building_seismic_zones [headercolor: #8A8D91] {
+  building_id bigint [pk, note: 'Identificador del edificio. Origen: silver_el_equipo_buildings.']
+  seismic_zone_id string [note: 'Identificador de la zona elegida (mayor área de intersección; empate, el menor id); nulo si el edificio no toca ninguna zona. Origen: silver_el_equipo_seismic_zones.']
+  seismic_zone_name string [note: 'Nombre de la zona elegida; nulo si no toca ninguna. Origen: silver_el_equipo_seismic_zones.']
+  etc_am_g double [note: 'Espectro ETC, aceleración máxima (am) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  etc_sm_g double [note: 'Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  etc_tc_s double [note: 'Espectro ETC, periodo tc en segundos de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  is_liquefaction_susceptible boolean [note: 'Verdadero si la zona elegida es susceptible a licuación; nulo si no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  has_lateral_spread_risk boolean [note: 'Verdadero si la zona elegida tiene riesgo de corrimiento lateral; nulo si no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  requires_site_study boolean [note: 'Verdadero si la zona elegida requiere estudio particular de sitio (sin valores ETC); nulo si no hay zona. Origen: silver_el_equipo_seismic_zones.']
+  seismic_zone_overlap_count int [note: 'Número de polígonos de zona que toca la huella del edificio (0 si ninguno). Mayor que 1 indica un edificio sobre el borde entre zonas. Origen: cruce espacial en EPSG:9377.']
+  seismic_zone_overlap_pct double [note: 'Porcentaje (0 a 100) de la huella del edificio que cae dentro de la zona elegida; nulo si no hay zona. Origen: área de intersección sobre area_m2, en EPSG:9377.']
+  Note: 'Zona de microzonificación sísmica de cada edificio, una fila por edificio (5.146). Se asigna la zona con mayor área de intersección con la huella (cruce en EPSG:9377); los edificios que no tocan ninguna zona quedan con nulos. ETC y ETL son los dos espectros de la microzonificación sísmica (estudio INGEOMINAS–DAGMA 2005, Decreto 411.0.20.0158 de 2014); su significado exacto está por verificar en el decreto. Origen: silver_el_equipo_buildings y silver_el_equipo_seismic_zones. | Grano: Un edificio (5.146). | Llave: building_id. | Fuente: silver_el_equipo_buildings y silver_el_equipo_seismic_zones (cruce espacial en EPSG:9377). | Notebook: src/silver/silver_seismic_zones.py.'
+}
+
+Table silver_el_equipo_facilities [headercolor: #8A8D91] {
+  facility_id string [pk, note: 'Identificador del equipamiento, formato \'<capa>.<id del WFS>\' (ej. \'health.eqp_uco_salud.484\'). Origen: bronze idesc, feature_id.']
+  source_layer string [note: 'Capa de origen: health, security, schools o public_spaces. Origen: tabla bronze idesc de la que sale.']
+  facility_type_code string [note: 'Tipo unificado: health, emergency (bomberos y Defensa Civil), police (resto de seguridad ciudadana, incluye tipo nulo), school u open_space. Origen: derivado de la capa y de tipo.']
+  facility_subtype string [note: 'Subtipo original: categoria (salud), tipo (seguridad), eeestado (sedes educativas) o ecrpotele (espacio público); nulo si venía vacío. Origen: bronze idesc.']
+  facility_name string [note: 'Nombre del equipamiento (nombre, eenomsede o ecrnomcom); nulo si venía vacío. Origen: bronze idesc.']
+  address string [note: 'Dirección o localización (localizaci, eedirecc o ecrdirecci); nula si venía vacía. Origen: bronze idesc.']
+  is_hospital boolean [note: 'Verdadero si es de salud con categoría \'Hospitales - Hospitalización\'; falso para el resto. Origen: derivado de categoria.']
+  care_level int [note: 'Nivel de atención de salud (1, 2 o 3); nulo si no es de salud o no tiene nivel. Origen: bronze idesc, nivel.']
+  is_public boolean [note: 'Verdadero si es público (propiedad PUB o estado Oficial); falso si es privado (PRIV) o no oficial; nulo si no aplica o no se sabe. Origen: propiedad (salud) o eeestado (colegios).']
+  enrollment_count int [note: 'Matrícula total de la sede educativa, en estudiantes; nulo si no es colegio. Origen: bronze idesc, ieomatrtot.']
+  area_m2 double [note: 'Área de la huella en m² calculada en EPSG:9377; nula para puntos (sedes educativas). Origen: geometría reproyectada.']
+  is_in_study_area boolean [note: 'Verdadero si el equipamiento intersecta el bbox de los edificios ampliado 2.000 m (EPSG:9377). Origen: cruce espacial con silver_el_equipo_buildings.']
+  lon double [note: 'Longitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. Origen: representative_point calculado en EPSG:4326.']
+  lat double [note: 'Latitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. Origen: representative_point calculado en EPSG:4326.']
+  geom_wkt string [note: 'Geometría del equipamiento en WKT, EPSG:4326 (lon, lat), ya reparada. Origen: bronze idesc, geometry.']
+  Note: 'Equipamientos de toda Cali (salud, bomberos y Defensa Civil, policía, sedes educativas y espacio público de encuentro), un equipamiento por fila. Fuente: capas oficiales del IDESC (Alcaldía de Santiago de Cali); las capas pot_2014 (salud y seguridad) no traen fecha, probablemente 2014; las sedes educativas se actualizaron en 2023–2024; el espacio público viene del PMEP 2021–2023. Pueden incluir equipamientos que ya no existen. | Grano: Un equipamiento de Cali (salud, bomberos y Defensa Civil, policía, sedes educativas y espacio público). | Llave: facility_id. | Fuente: Las cuatro bronze bronze_el_equipo_idesc_health_facilities, _idesc_security_facilities, _idesc_schools y _idesc_public_spaces. | Notebook: src/silver/silver_facilities.py.'
+}
+
+Table silver_el_equipo_building_facility_distances [headercolor: #8A8D91] {
+  building_id bigint [pk, note: 'Identificador del edificio. Origen: silver_el_equipo_buildings.']
+  nearest_health_m double [note: 'Distancia en m al equipamiento de salud más cercano (hospital o no). Origen: sjoin_nearest con silver_el_equipo_facilities (tipo health), EPSG:9377.']
+  nearest_hospital_m double [note: 'Distancia en m al hospital más cercano (salud con is_hospital). Origen: sjoin_nearest con silver_el_equipo_facilities, EPSG:9377.']
+  nearest_emergency_m double [note: 'Distancia en m a la estación de bomberos o sede de Defensa Civil más cercana. Origen: sjoin_nearest con silver_el_equipo_facilities (tipo emergency), EPSG:9377.']
+  nearest_police_m double [note: 'Distancia en m al equipamiento de policía más cercano (CAI, estaciones, etc.). Origen: sjoin_nearest con silver_el_equipo_facilities (tipo police), EPSG:9377.']
+  nearest_school_m double [note: 'Distancia en m a la sede educativa más cercana. Origen: sjoin_nearest con silver_el_equipo_facilities (tipo school), EPSG:9377.']
+  nearest_open_space_m double [note: 'Distancia en m al espacio público de encuentro más cercano (borde del polígono; 0 si el edificio está dentro). Origen: sjoin_nearest con silver_el_equipo_facilities (tipo open_space), EPSG:9377.']
+  nearest_hospital_name string [note: 'Nombre del hospital más cercano; nulo si el hospital no tiene nombre. Origen: silver_el_equipo_facilities, facility_name.']
+  nearest_emergency_name string [note: 'Nombre de la estación de bomberos o sede de Defensa Civil más cercana; nulo si no tiene nombre. Origen: silver_el_equipo_facilities, facility_name.']
+  nearest_open_space_name string [note: 'Nombre del espacio público más cercano; nulo si no tiene nombre. Origen: silver_el_equipo_facilities, facility_name.']
+  open_space_count_500m int [note: 'Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. Origen: cruce espacial con silver_el_equipo_facilities (tipo open_space), EPSG:9377.']
+  Note: 'Distancia en metros de cada edificio al equipamiento más cercano de cada tipo, una fila por edificio (5.146). Medida en EPSG:9377 desde el centroide del edificio hasta la geometría del equipamiento (0 si está dentro), con todos los equipamientos de Cali. Fuente: capas oficiales del IDESC (Alcaldía de Santiago de Cali); salud y seguridad sin fecha (probablemente 2014), colegios 2023–2024, espacio público PMEP 2021–2023. | Grano: Un edificio (5.146). | Llave: building_id. | Fuente: silver_el_equipo_buildings y silver_el_equipo_facilities. | Notebook: src/silver/silver_facilities.py.'
+}
+
+Table gold_el_equipo_map_buildings [headercolor: #D4A017] {
+  building_id bigint [pk, note: 'Identificador único del edificio. Origen: silver_el_equipo_buildings.']
+  commune_code string [note: 'Código oficial de la comuna (2 dígitos) según la ubicación. Origen: silver_el_equipo_buildings.']
+  commune_name string [note: 'Nombre oficial de la comuna. Origen: silver_el_equipo_buildings.']
+  neighborhood_code string [note: 'Código oficial del barrio (4 dígitos \'CCBB\') según la ubicación. Origen: silver_el_equipo_buildings.']
+  neighborhood_name string [note: 'Nombre oficial del barrio. Origen: silver_el_equipo_buildings.']
+  floor_count bigint [note: 'Número de pisos válido (mayor que 0); nulo si el dato falta. Origen: silver_el_equipo_buildings.']
+  area_m2 double [note: 'Área de la huella en m² calculada en EPSG:9377. Origen: silver_el_equipo_buildings.']
+  built_area_m2 double [note: 'Área construida estimada en m² (huella por pisos, 1 piso si falta el dato). Origen: silver_el_equipo_buildings.']
+  structural_status_code string [note: 'Estado estructural inferido por satélite: no_change, roof_loss, debris o no_data. Origen: silver_el_equipo_buildings.']
+  structural_status string [note: 'Estado estructural en el texto original en español. Origen: silver_el_equipo_buildings.']
+  damage_level bigint [note: 'Nivel de daño ordinal: 0 no_change, 1 roof_loss, 2 debris; nulo si no hay datos. Origen: silver_el_equipo_buildings.']
+  debris_index double [note: 'Índice de escombros satelital. Origen: silver_el_equipo_buildings.']
+  color_hex string [note: 'Color para el mapa según el estado: azul no_change, naranja roof_loss, rojo debris, gris no_data. Origen: derivado de structural_status_code.']
+  is_suspect_polygon boolean [note: 'Verdadero si el polígono es dudoso (área menor de 5 m², mayor de 50.000 m² o vacío). Origen: silver_el_equipo_buildings.']
+  seismic_zone_id string [note: 'Identificador de la zona de microzonificación elegida (mayor área de intersección con la huella); nulo si el edificio no toca ninguna zona. Origen: silver_el_equipo_building_seismic_zones.']
+  seismic_zone_name string [note: 'Nombre de la zona de microzonificación elegida (ej. \'Zona 4C\'); nulo si no toca ninguna. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_am_g double [note: 'Espectro ETC, aceleración máxima (am) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_sm_g double [note: 'Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_tc_s double [note: 'Espectro ETC, periodo tc en segundos de la zona; nulo si la zona requiere estudio particular o no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  is_liquefaction_susceptible boolean [note: 'Verdadero si la zona elegida es susceptible a licuación; nulo si no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  has_lateral_spread_risk boolean [note: 'Verdadero si la zona elegida tiene riesgo de corrimiento lateral; nulo si no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  requires_site_study boolean [note: 'Verdadero si la zona elegida requiere estudio particular de sitio (sin valores ETC); nulo si no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  seismic_zone_overlap_count int [note: 'Número de polígonos de zona que toca la huella del edificio (0 si ninguno). Mayor que 1 indica un edificio sobre el borde entre zonas. Origen: silver_el_equipo_building_seismic_zones.']
+  seismic_zone_overlap_pct double [note: 'Porcentaje (0 a 100) de la huella del edificio que cae dentro de la zona elegida; nulo si no hay zona. Origen: silver_el_equipo_building_seismic_zones.']
+  nearest_health_m double [note: 'Distancia en m al equipamiento de salud más cercano (hospital o no). Origen: silver_el_equipo_building_facility_distances.']
+  nearest_hospital_m double [note: 'Distancia en m al hospital más cercano (salud con is_hospital). Origen: silver_el_equipo_building_facility_distances.']
+  nearest_emergency_m double [note: 'Distancia en m a la estación de bomberos o sede de Defensa Civil más cercana. Origen: silver_el_equipo_building_facility_distances.']
+  nearest_police_m double [note: 'Distancia en m al equipamiento de policía más cercano (CAI, estaciones, etc.). Origen: silver_el_equipo_building_facility_distances.']
+  nearest_school_m double [note: 'Distancia en m a la sede educativa más cercana. Origen: silver_el_equipo_building_facility_distances.']
+  nearest_open_space_m double [note: 'Distancia en m al espacio público de encuentro más cercano (borde del polígono; 0 si el edificio está dentro). Origen: silver_el_equipo_building_facility_distances.']
+  nearest_hospital_name string [note: 'Nombre del hospital más cercano; nulo si el hospital no tiene nombre. Origen: silver_el_equipo_building_facility_distances.']
+  nearest_emergency_name string [note: 'Nombre de la estación de bomberos o sede de Defensa Civil más cercana; nulo si no tiene nombre. Origen: silver_el_equipo_building_facility_distances.']
+  nearest_open_space_name string [note: 'Nombre del espacio público más cercano; nulo si no tiene nombre. Origen: silver_el_equipo_building_facility_distances.']
+  open_space_count_500m int [note: 'Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. Origen: silver_el_equipo_building_facility_distances.']
+  aftershock_priority_code string [note: 'Prioridad ante réplicas (criterio del equipo, no cifra oficial): high, medium, low o no_data. high = daño (roof_loss o debris) con algún factor agravante; medium = daño sin agravante, o sin cambio sobre suelo que requiere estudio particular o es licuable; low = sin cambio sin agravante de suelo; no_data = sin datos satelitales. Origen: derivado de structural_status_code y los factores agravantes.']
+  has_aggravating_factor boolean [note: 'Verdadero si el edificio tiene algún factor agravante ante réplicas: zona que requiere estudio particular, suelo licuable, hospital a más de 1.000 m o ningún espacio público de encuentro a 500 m. Nunca nulo. Origen: derivado de requires_site_study, is_liquefaction_susceptible, nearest_hospital_m y open_space_count_500m.']
+  priority_color_hex string [note: 'Color para el mapa según aftershock_priority_code: rojo high, naranja medium, verde low, gris no_data. Origen: derivado de aftershock_priority_code.']
+  geom_wkt string [note: 'Geometría del edificio en WKT, EPSG:4326 (lon, lat). Origen: silver_el_equipo_buildings.']
+  Note: 'Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, zona de microzonificación sísmica del IDESC, distancias a equipamientos del IDESC y geometría WKT. Incluye polígonos dudosos con su bandera. | Grano: Un edificio (5.146). | Llave: building_id. | Fuente: silver_el_equipo_buildings, silver_el_equipo_building_seismic_zones y silver_el_equipo_building_facility_distances (uniones por building_id). | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_map_seismic_zones [headercolor: #D4A017] {
+  seismic_zone_id string [pk, note: 'Identificador del polígono de microzonificación (id del feature en el WFS del IDESC). Origen: silver_el_equipo_seismic_zones.']
+  seismic_zone_name string [note: 'Nombre de la zona de microzonificación (ej. \'Zona 4C\'); puede repetirse entre polígonos. Origen: silver_el_equipo_seismic_zones.']
+  etc_am_g double [note: 'Espectro ETC, aceleración máxima (am) en g; nulo si la zona requiere estudio particular. Origen: silver_el_equipo_seismic_zones.']
+  etc_sm_g double [note: 'Espectro ETC, aceleración de la meseta espectral (sm) en g; nulo si la zona requiere estudio particular. Origen: silver_el_equipo_seismic_zones.']
+  etc_tc_s double [note: 'Espectro ETC, periodo tc en segundos; nulo si la zona requiere estudio particular. Origen: silver_el_equipo_seismic_zones.']
+  requires_site_study boolean [note: 'Verdadero si la zona requiere estudio particular de sitio (sin valores ETC). Origen: silver_el_equipo_seismic_zones.']
+  is_liquefaction_susceptible boolean [note: 'Verdadero si el suelo de la zona es susceptible a licuación. Origen: silver_el_equipo_seismic_zones.']
+  has_lateral_spread_risk boolean [note: 'Verdadero si la zona tiene riesgo de corrimiento lateral. Origen: silver_el_equipo_seismic_zones.']
+  building_count bigint [note: 'Número de edificios del mapa asignados a este polígono (0 si ninguno). Origen: conteo sobre gold_el_equipo_map_buildings por seismic_zone_id.']
+  damaged_building_pct double [note: 'Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de gold_el_equipo_map_buildings.']
+  geom_wkt string [note: 'Geometría de la zona en WKT, EPSG:4326 (lon, lat). Origen: silver_el_equipo_seismic_zones.']
+  Note: 'Polígonos de microzonificación sísmica del IDESC que tocan el área de los edificios (bbox de los edificios del mapa), con espectros ETC, banderas de suelo, número de edificios asignados y porcentaje de daño. Una fila por polígono; capa de contexto para el mapa. | Grano: Un polígono de microzonificación que toca el bbox de los edificios. | Llave: seismic_zone_id. | Fuente: silver_el_equipo_seismic_zones (polígonos que intersectan el bbox de los edificios, prueba con shapely) y gold_el_equipo_map_buildings (conteo y % de daño por seismic_zone_id). | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_map_facilities [headercolor: #D4A017] {
+  facility_id string [pk, note: 'Identificador del equipamiento, formato \'<capa>.<id del WFS>\'. Origen: silver_el_equipo_facilities.']
+  facility_type_code string [note: 'Tipo unificado: health, emergency, police, school u open_space. Origen: silver_el_equipo_facilities.']
+  facility_subtype string [note: 'Subtipo original (categoría de salud, tipo de seguridad, estado del colegio o tipo de espacio público); nulo si venía vacío. Origen: silver_el_equipo_facilities.']
+  facility_name string [note: 'Nombre del equipamiento; nulo si venía vacío. Origen: silver_el_equipo_facilities.']
+  is_hospital boolean [note: 'Verdadero si es de salud con categoría \'Hospitales - Hospitalización\'. Origen: silver_el_equipo_facilities.']
+  care_level int [note: 'Nivel de atención de salud (1, 2 o 3); nulo si no es de salud o no tiene nivel. Origen: silver_el_equipo_facilities.']
+  enrollment_count int [note: 'Matrícula total de la sede educativa, en estudiantes; nulo si no es colegio. Origen: silver_el_equipo_facilities.']
+  lon double [note: 'Longitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. Origen: silver_el_equipo_facilities.']
+  lat double [note: 'Latitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. Origen: silver_el_equipo_facilities.']
+  geom_wkt string [note: 'Geometría del equipamiento en WKT, EPSG:4326 (lon, lat). Origen: silver_el_equipo_facilities.']
+  Note: 'Equipamientos del IDESC dentro del área de estudio (bbox de los edificios ampliado 2.000 m): salud, bomberos y Defensa Civil, policía, colegios y espacio público de encuentro. Una fila por equipamiento; capa de contexto para el mapa. | Grano: Un equipamiento dentro del área de estudio (is_in_study_area). | Llave: facility_id. | Fuente: silver_el_equipo_facilities filtrada por is_in_study_area. | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_commune_summary [headercolor: #D4A017] {
+  commune_code string [pk, note: 'Código oficial de la comuna (2 dígitos). Origen: silver_el_equipo_buildings.']
+  commune_name string [note: 'Nombre oficial de la comuna. Origen: silver_el_equipo_buildings.']
+  building_count bigint [note: 'Número de edificios de la comuna. Origen: conteo sobre silver_el_equipo_buildings.']
+  no_change_building_count bigint [note: 'Edificios con estado no_change (sin cambio aparente). Origen: conteo por structural_status_code.']
+  roof_loss_building_count bigint [note: 'Edificios con estado roof_loss (posible pérdida de techo). Origen: conteo por structural_status_code.']
+  debris_building_count bigint [note: 'Edificios con estado debris (alta probabilidad de escombros). Origen: conteo por structural_status_code.']
+  no_data_building_count bigint [note: 'Edificios sin datos satelitales (no_data). Origen: conteo por structural_status_code.']
+  built_area_m2 double [note: 'Área construida total en m². Origen: suma de built_area_m2 de silver_el_equipo_buildings.']
+  no_change_built_area_m2 double [note: 'Área construida en m² de los edificios no_change. Origen: suma por structural_status_code.']
+  roof_loss_built_area_m2 double [note: 'Área construida en m² de los edificios roof_loss. Origen: suma por structural_status_code.']
+  debris_built_area_m2 double [note: 'Área construida en m² de los edificios debris. Origen: suma por structural_status_code.']
+  no_data_built_area_m2 double [note: 'Área construida en m² de los edificios no_data. Origen: suma por structural_status_code.']
+  damaged_building_pct double [note: 'Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de los conteos.']
+  damaged_area_pct double [note: 'Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.']
+  no_data_building_pct double [note: 'Porcentaje (0-100) de edificios sin datos satelitales sobre el total de la comuna. Origen: derivado de los conteos.']
+  no_data_area_pct double [note: 'Porcentaje (0-100) del área construida sin datos satelitales sobre el total de la comuna. Origen: derivado de las áreas.']
+  Note: 'Resumen del daño por comuna oficial: conteos y área construida por estado estructural, y porcentajes de daño y de cobertura sin datos. Una fila por comuna con edificios del dataset. | Grano: Una comuna oficial con edificios. | Llave: commune_code. | Fuente: silver_el_equipo_buildings. | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_neighborhood_summary [headercolor: #D4A017] {
+  commune_code string [note: 'Código oficial de la comuna del barrio (2 dígitos). Origen: silver_el_equipo_buildings.']
+  commune_name string [note: 'Nombre oficial de la comuna del barrio. Origen: silver_el_equipo_buildings.']
+  neighborhood_code string [pk, note: 'Código oficial del barrio (4 dígitos \'CCBB\'). Origen: silver_el_equipo_buildings.']
+  neighborhood_name string [note: 'Nombre oficial del barrio. Origen: silver_el_equipo_buildings.']
+  building_count bigint [note: 'Número de edificios del barrio. Origen: conteo sobre silver_el_equipo_buildings.']
+  no_change_building_count bigint [note: 'Edificios con estado no_change (sin cambio aparente). Origen: conteo por structural_status_code.']
+  roof_loss_building_count bigint [note: 'Edificios con estado roof_loss (posible pérdida de techo). Origen: conteo por structural_status_code.']
+  debris_building_count bigint [note: 'Edificios con estado debris (alta probabilidad de escombros). Origen: conteo por structural_status_code.']
+  no_data_building_count bigint [note: 'Edificios sin datos satelitales (no_data). Origen: conteo por structural_status_code.']
+  built_area_m2 double [note: 'Área construida total en m². Origen: suma de built_area_m2 de silver_el_equipo_buildings.']
+  no_change_built_area_m2 double [note: 'Área construida en m² de los edificios no_change. Origen: suma por structural_status_code.']
+  roof_loss_built_area_m2 double [note: 'Área construida en m² de los edificios roof_loss. Origen: suma por structural_status_code.']
+  debris_built_area_m2 double [note: 'Área construida en m² de los edificios debris. Origen: suma por structural_status_code.']
+  no_data_built_area_m2 double [note: 'Área construida en m² de los edificios no_data. Origen: suma por structural_status_code.']
+  damaged_building_pct double [note: 'Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de los conteos.']
+  damaged_area_pct double [note: 'Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.']
+  no_data_building_pct double [note: 'Porcentaje (0-100) de edificios sin datos satelitales sobre el total del barrio. Origen: derivado de los conteos.']
+  no_data_area_pct double [note: 'Porcentaje (0-100) del área construida sin datos satelitales sobre el total del barrio. Origen: derivado de las áreas.']
+  Note: 'Resumen del daño por barrio oficial (DIVIPOLA 2026): conteos y área construida por estado estructural, y porcentajes de daño y de cobertura sin datos. Una fila por barrio con edificios del dataset. | Grano: Un barrio oficial con edificios. | Llave: neighborhood_code. | Fuente: silver_el_equipo_buildings. | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_seismic_zone_summary [headercolor: #D4A017] {
+  seismic_zone_name string [pk, note: 'Nombre de la zona de microzonificación (ej. \'Zona 4C\'); nulo para los edificios que no tocan ninguna zona. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_am_g double [note: 'Espectro ETC, aceleración máxima (am) en g de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_sm_g double [note: 'Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. Origen: silver_el_equipo_building_seismic_zones.']
+  etc_tc_s double [note: 'Espectro ETC, periodo tc en segundos de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. Origen: silver_el_equipo_building_seismic_zones.']
+  is_liquefaction_susceptible boolean [note: 'Verdadero si algún edificio de la zona está en suelo susceptible a licuación. Origen: silver_el_equipo_building_seismic_zones.']
+  requires_site_study boolean [note: 'Verdadero si algún edificio de la zona requiere estudio particular de sitio (sin valores ETC). Origen: silver_el_equipo_building_seismic_zones.']
+  building_count bigint [note: 'Número de edificios de la zona. Origen: conteo sobre silver_el_equipo_buildings.']
+  no_change_building_count bigint [note: 'Edificios con estado no_change (sin cambio aparente). Origen: conteo por structural_status_code.']
+  roof_loss_building_count bigint [note: 'Edificios con estado roof_loss (posible pérdida de techo). Origen: conteo por structural_status_code.']
+  debris_building_count bigint [note: 'Edificios con estado debris (alta probabilidad de escombros). Origen: conteo por structural_status_code.']
+  no_data_building_count bigint [note: 'Edificios sin datos satelitales (no_data). Origen: conteo por structural_status_code.']
+  built_area_m2 double [note: 'Área construida total en m². Origen: suma de built_area_m2 de silver_el_equipo_buildings.']
+  no_change_built_area_m2 double [note: 'Área construida en m² de los edificios no_change. Origen: suma por structural_status_code.']
+  roof_loss_built_area_m2 double [note: 'Área construida en m² de los edificios roof_loss. Origen: suma por structural_status_code.']
+  debris_built_area_m2 double [note: 'Área construida en m² de los edificios debris. Origen: suma por structural_status_code.']
+  no_data_built_area_m2 double [note: 'Área construida en m² de los edificios no_data. Origen: suma por structural_status_code.']
+  damaged_building_pct double [note: 'Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de los conteos.']
+  damaged_area_pct double [note: 'Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.']
+  no_data_building_pct double [note: 'Porcentaje (0-100) de edificios sin datos satelitales sobre el total de la zona. Origen: derivado de los conteos.']
+  no_data_area_pct double [note: 'Porcentaje (0-100) del área construida sin datos satelitales sobre el total de la zona. Origen: derivado de las áreas.']
+  avg_floor_count bigint [note: 'Promedio de pisos de los edificios de la zona con número de pisos válido; nulo si ninguno lo tiene. Origen: promedio de floor_count de silver_el_equipo_buildings.']
+  median_nearest_hospital_m double [note: 'Mediana en m de la distancia al hospital más cercano de los edificios de la zona. Origen: mediana de nearest_hospital_m de silver_el_equipo_building_facility_distances.']
+  median_nearest_open_space_m double [note: 'Mediana en m de la distancia al espacio público de encuentro más cercano de los edificios de la zona. Origen: mediana de nearest_open_space_m de silver_el_equipo_building_facility_distances.']
+  Note: 'Resumen del daño por zona de microzonificación sísmica (agrupado por nombre de zona, que se repite entre polígonos): conteos y área construida por estado estructural, porcentajes de daño y de cobertura sin datos, pisos promedio y medianas de distancia al hospital y al espacio público de encuentro. Una fila por zona con edificios del dataset, más una fila con zona nula si hay edificios que no tocan ninguna zona. | Grano: Una zona de microzonificación (por nombre) con edificios, más una fila con zona nula si hay edificios sin zona. | Llave: seismic_zone_name. | Fuente: gold_el_equipo_map_buildings. | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+// Relaciones: '-' uno a uno, '>' muchos a uno (logicas, no FK declaradas).
+Ref: silver_el_equipo_neighborhoods.commune_code > silver_el_equipo_communes.commune_code // barrio pertenece a comuna
+Ref: silver_el_equipo_buildings.commune_code > silver_el_equipo_communes.commune_code // comuna oficial por ubicacion
+Ref: silver_el_equipo_buildings.neighborhood_code > silver_el_equipo_neighborhoods.neighborhood_code // barrio oficial por ubicacion (sjoin)
+Ref: silver_el_equipo_buildings.cadastral_neighborhood_code > silver_el_equipo_cadastre_neighborhoods.cadastral_neighborhood_code // nombre catastral del barrio
+Ref: silver_el_equipo_buildings.parcel_id > silver_el_equipo_cadastre_parcels.parcel_id // datos del catastro; parcels no tiene llave unica
+Ref: silver_el_equipo_neighborhood_crosswalk.cadastral_neighborhood_code > silver_el_equipo_cadastre_neighborhoods.cadastral_neighborhood_code // codigo catastral
+Ref: silver_el_equipo_neighborhood_crosswalk.neighborhood_code > silver_el_equipo_neighborhoods.neighborhood_code // barrio oficial
+Ref: silver_el_equipo_building_seismic_zones.building_id - silver_el_equipo_buildings.building_id // zona de cada edificio 1:1
+Ref: silver_el_equipo_building_seismic_zones.seismic_zone_id > silver_el_equipo_seismic_zones.seismic_zone_id // zona con mayor interseccion
+Ref: silver_el_equipo_building_facility_distances.building_id - silver_el_equipo_buildings.building_id // distancias por edificio 1:1
+Ref: gold_el_equipo_map_buildings.building_id - silver_el_equipo_buildings.building_id // una fila por edificio
+Ref: gold_el_equipo_map_buildings.building_id - silver_el_equipo_building_seismic_zones.building_id // left join por building_id
+Ref: gold_el_equipo_map_buildings.building_id - silver_el_equipo_building_facility_distances.building_id // left join por building_id
+Ref: silver_el_equipo_buildings.commune_code > gold_el_equipo_commune_summary.commune_code // agregado por comuna
+Ref: silver_el_equipo_buildings.neighborhood_code > gold_el_equipo_neighborhood_summary.neighborhood_code // agregado por barrio
+Ref: gold_el_equipo_map_buildings.seismic_zone_name > gold_el_equipo_seismic_zone_summary.seismic_zone_name // agregado por nombre de zona
+Ref: gold_el_equipo_map_buildings.seismic_zone_id > gold_el_equipo_map_seismic_zones.seismic_zone_id // capa de zonas del mapa
+Ref: gold_el_equipo_map_seismic_zones.seismic_zone_id - silver_el_equipo_seismic_zones.seismic_zone_id // poligonos que tocan el bbox de los edificios
+Ref: gold_el_equipo_map_facilities.facility_id - silver_el_equipo_facilities.facility_id // equipamientos con is_in_study_area
+
+TableGroup silver [color: #8A8D91] {
+  silver_el_equipo_communes
+  silver_el_equipo_neighborhoods
+  silver_el_equipo_cadastre_neighborhoods
+  silver_el_equipo_cadastre_parcels
+  silver_el_equipo_code_catalog
+  silver_el_equipo_buildings
+  silver_el_equipo_neighborhood_crosswalk
+  silver_el_equipo_seismic_zones
+  silver_el_equipo_building_seismic_zones
+  silver_el_equipo_facilities
+  silver_el_equipo_building_facility_distances
+  Note: 'Silver: limpieza, EPSG:9377 para medidas y cruces espaciales'
+}
+
+TableGroup gold [color: #D4A017] {
+  gold_el_equipo_map_buildings
+  gold_el_equipo_map_seismic_zones
+  gold_el_equipo_map_facilities
+  gold_el_equipo_commune_summary
+  gold_el_equipo_neighborhood_summary
+  gold_el_equipo_seismic_zone_summary
+  Note: 'Gold: listo para el mapa y las cifras'
+}
