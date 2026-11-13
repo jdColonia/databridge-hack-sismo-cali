@@ -63,7 +63,8 @@ jobs:
 
   pipeline:
     needs: changes
-    if: (github.event_name == 'workflow_dispatch' && inputs.run_pipeline) || needs.changes.outputs.pipeline == 'true'
+    # A mano manda el input; en push, solo si cambiaron archivos del pipeline
+    if: (github.event_name == 'workflow_dispatch' && inputs.run_pipeline) || (github.event_name == 'push' && needs.changes.outputs.pipeline == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
