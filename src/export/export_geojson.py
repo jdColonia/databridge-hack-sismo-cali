@@ -11,7 +11,7 @@ dbutils.library.restartPython()
 # MAGIC # Export a GeoJSON
 # MAGIC Exporta tres capas gold como GeoJSON en el volumen (`export/`) para llevarlas a Kepler.gl, QGIS o cualquier visor:
 # MAGIC
-# MAGIC - `gold_{team}_map_buildings.geojson`: 5.146 edificios con estado, zona sísmica, distancias a equipamientos y la prioridad ante réplicas (`aftershock_priority_code`, `has_aggravating_factor`, `priority_color_hex`).
+# MAGIC - `gold_{team}_map_buildings.geojson`: 5.146 edificios con estado, zona sísmica, uso del suelo del catastro (`land_use`), distancias a equipamientos y la prioridad ante réplicas (`aftershock_priority_code`, `has_aggravating_factor`, `priority_color_hex`).
 # MAGIC - `gold_{team}_map_seismic_zones.geojson`: polígonos de microzonificación que tocan el área de los edificios, con espectros ETC, banderas de suelo, número de edificios y % de daño.
 # MAGIC - `gold_{team}_map_facilities.geojson`: equipamientos del área de estudio (salud, emergencia, policía, colegios, espacio público).
 # MAGIC
@@ -78,7 +78,7 @@ def export_layer(table_suffix, round_int=(), round_2=(), round_1=(), int_cols=()
 
 # MAGIC %md
 # MAGIC ### Edificios
-# MAGIC Se espera 5.146 features. Las propiedades incluyen zona sísmica, distancias (enteras) y la prioridad ante réplicas para colorear con `priority_color_hex` o `aftershock_priority_code`.
+# MAGIC Se espera 5.146 features. Las propiedades incluyen zona sísmica, uso del suelo del catastro (`land_use`), distancias (enteras) y la prioridad ante réplicas para colorear con `priority_color_hex` o `aftershock_priority_code`.
 
 # COMMAND ----------
 
@@ -86,8 +86,8 @@ gdf_buildings = export_layer(
     "map_buildings",
     round_int=["nearest_health_m", "nearest_hospital_m", "nearest_emergency_m", "nearest_police_m",
                "nearest_school_m", "nearest_open_space_m"],
-    int_cols=["open_space_count_500m"],
-    required=["seismic_zone_name", "etc_sm_g", "requires_site_study", "is_liquefaction_susceptible",
+    int_cols=["open_space_count_500m", "cadastre_floor_count"],
+    required=["seismic_zone_name", "land_use", "etc_sm_g", "requires_site_study", "is_liquefaction_susceptible",
               "nearest_hospital_m", "nearest_emergency_m", "nearest_open_space_m", "open_space_count_500m",
               "aftershock_priority_code", "has_aggravating_factor", "priority_color_hex"],
     expected_count=5146,

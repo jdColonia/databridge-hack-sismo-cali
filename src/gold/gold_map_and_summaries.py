@@ -8,12 +8,13 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Gold: mapa de edificios y resúmenes por comuna, barrio y zona sísmica
+# MAGIC # Gold: mapa de edificios y resúmenes por comuna, barrio, zona sísmica y uso del suelo
 # MAGIC Tablas listas para consumir (mapa, tableros):
 # MAGIC
-# MAGIC - `gold_{team}_map_buildings`: una fila por edificio con color, geometría WKT, zona de microzonificación sísmica y distancias a equipamientos (IDESC). **Incluye los polígonos dudosos** (con su flag `is_suspect_polygon`) para que quien consuma decida si filtrarlos.
+# MAGIC - `gold_{team}_map_buildings`: una fila por edificio con color, geometría WKT, zona de microzonificación sísmica, distancias a equipamientos, uso del suelo y datos del catastro (IDESC). **Incluye los polígonos dudosos** (con su flag `is_suspect_polygon`) para que quien consuma decida si filtrarlos.
 # MAGIC - `gold_{team}_map_seismic_zones` y `gold_{team}_map_facilities`: capas de contexto para el mapa (polígonos de microzonificación que tocan el área de los edificios, con conteo y % de daño; equipamientos del área de estudio).
 # MAGIC - `gold_{team}_commune_summary` y `gold_{team}_neighborhood_summary`: conteos, área construida y porcentajes de daño por comuna y por barrio **oficiales** (DIVIPOLA 2026, por ubicación).
+# MAGIC - `gold_{team}_land_use_summary`: los mismos conteos, área y porcentajes agrupados por `land_use` (uso principal del predio según el catastro del IDESC). La fila con `land_use` nulo agrupa los edificios "sin dato de catastro".
 # MAGIC - `gold_{team}_seismic_zone_summary`: los mismos conteos, área y porcentajes por **zona de microzonificación sísmica** (agrupada por nombre, porque el nombre se repite en varios polígonos), más pisos promedio y medianas de distancia al hospital y al espacio público de encuentro.
 # MAGIC
 # MAGIC **Por qué el denominador excluye `no_data`:** los 435 edificios sin datos satelitales no se pueden clasificar; contarlos como "sin daño" bajaría artificialmente el porcentaje, y contarlos como "dañados" lo inflaría.
@@ -50,6 +51,7 @@ gold_map_facilities = f"{catalog}.{schema}.gold_{team}_map_facilities"
 gold_commune = f"{catalog}.{schema}.gold_{team}_commune_summary"
 gold_neighborhood = f"{catalog}.{schema}.gold_{team}_neighborhood_summary"
 gold_zone = f"{catalog}.{schema}.gold_{team}_seismic_zone_summary"
+gold_land_use = f"{catalog}.{schema}.gold_{team}_land_use_summary"
 
 missing_tables = [t for t in (silver_table, zones_table, dist_table, zones_poly_table, facilities_table) if not spark.catalog.tableExists(t)]
 assert not missing_tables, f"Faltan tablas {missing_tables}: corre antes silver_buildings, silver_seismic_zones y silver_facilities."
@@ -74,7 +76,7 @@ def apply_comments(table, table_comment, column_comments):
 
 DOCS = {
     "map_buildings": {
-        "table": "Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, zona de microzonificación sísmica del IDESC, distancias a equipamientos del IDESC y geometría WKT. Incluye polígonos dudosos con su bandera.",
+        "table": "Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, zona de microzonificación sísmica del IDESC, distancias a equipamientos del IDESC, uso del suelo y datos del catastro del IDESC y geometría WKT. Incluye polígonos dudosos con su bandera.",
         "columns": {
             "building_id": "Identificador único del edificio. Origen: silver_el_equipo_buildings.",
             "commune_code": "Código oficial de la comuna (2 dígitos) según la ubicación. Origen: silver_el_equipo_buildings.",
@@ -112,7 +114,12 @@ DOCS = {
             "open_space_count_500m": "Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. Origen: silver_el_equipo_building_facility_distances.",
             "aftershock_priority_code": "Prioridad ante réplicas (criterio del equipo, no cifra oficial): high, medium, low o no_data. high = daño (roof_loss o debris) con algún factor agravante; medium = daño sin agravante, o sin cambio sobre suelo que requiere estudio particular o es licuable; low = sin cambio sin agravante de suelo; no_data = sin datos satelitales. Origen: derivado de structural_status_code y los factores agravantes.",
             "has_aggravating_factor": "Verdadero si el edificio tiene algún factor agravante ante réplicas: zona que requiere estudio particular, suelo licuable, hospital a más de 1.000 m o ningún espacio público de encuentro a 500 m. Nunca nulo. Origen: derivado de requires_site_study, is_liquefaction_susceptible, nearest_hospital_m y open_space_count_500m.",
-            "priority_color_hex": "Color para el mapa según aftershock_priority_code: rojo high, naranja medium, verde low, gris no_data. Origen: derivado de aftershock_priority_code.",
+            "priority_color_hex": "Color para el mapa según aftershock_priority_code: rojo high, naranja medium, azul low, gris no_data. Origen: derivado de aftershock_priority_code.",
+            "land_use": "Uso principal del predio según el catastro del IDESC (ej. 'RESIDENCIAL', 'COMERCIAL', 'INSTITUCIONAL', 'INDUSTRIAL', 'OTROS'); nulo si el edificio no se pudo unir con el catastro (sin dato). Origen: silver_el_equipo_buildings.",
+            "cadastre_floor_count": "Número de pisos según el catastro; nulo si no hay match con el catastro. Origen: silver_el_equipo_buildings.",
+            "cadastre_built_area_m2": "Área construida según el catastro, en m²; nulo si no hay match con el catastro. Origen: silver_el_equipo_buildings.",
+            "economic_destination_code": "Código de destinación económica del predio según el catastro; nulo si no hay match. Origen: silver_el_equipo_buildings.",
+            "cadastre_match_method": "Cómo se unió el edificio con el catastro: parcel_id, connection (conexión única), ambiguous_connection (varias unidades, no se adivina) o no_match. Origen: silver_el_equipo_buildings.",
             "geom_wkt": "Geometría del edificio en WKT, EPSG:4326 (lon, lat). Origen: silver_el_equipo_buildings.",
         },
     },
@@ -166,6 +173,26 @@ DOCS = {
             "damaged_area_pct": "Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.",
             "no_data_building_pct": "Porcentaje (0-100) de edificios sin datos satelitales sobre el total de la comuna. Origen: derivado de los conteos.",
             "no_data_area_pct": "Porcentaje (0-100) del área construida sin datos satelitales sobre el total de la comuna. Origen: derivado de las áreas.",
+        },
+    },
+    "land_use_summary": {
+        "table": "Resumen del daño por uso del suelo del catastro del IDESC: conteos y área construida por estado estructural, y porcentajes de daño y de cobertura sin datos. Una fila por uso, más una fila con uso nulo para los edificios sin dato de catastro.",
+        "columns": {
+            "land_use": "Uso principal del predio según el catastro (ej. 'RESIDENCIAL'); nulo agrupa los edificios sin dato de catastro. Origen: silver_el_equipo_buildings.",
+            "building_count": "Número de edificios del uso. Origen: conteo sobre silver_el_equipo_buildings.",
+            "no_change_building_count": "Edificios con estado no_change (sin cambio aparente). Origen: conteo por structural_status_code.",
+            "roof_loss_building_count": "Edificios con estado roof_loss (posible pérdida de techo). Origen: conteo por structural_status_code.",
+            "debris_building_count": "Edificios con estado debris (alta probabilidad de escombros). Origen: conteo por structural_status_code.",
+            "no_data_building_count": "Edificios sin datos satelitales (no_data). Origen: conteo por structural_status_code.",
+            "built_area_m2": "Área construida total en m². Origen: suma de built_area_m2 de silver_el_equipo_buildings.",
+            "no_change_built_area_m2": "Área construida en m² de los edificios no_change. Origen: suma por structural_status_code.",
+            "roof_loss_built_area_m2": "Área construida en m² de los edificios roof_loss. Origen: suma por structural_status_code.",
+            "debris_built_area_m2": "Área construida en m² de los edificios debris. Origen: suma por structural_status_code.",
+            "no_data_built_area_m2": "Área construida en m² de los edificios no_data. Origen: suma por structural_status_code.",
+            "damaged_building_pct": "Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de los conteos.",
+            "damaged_area_pct": "Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.",
+            "no_data_building_pct": "Porcentaje (0-100) de edificios sin datos satelitales sobre el total del uso. Origen: derivado de los conteos.",
+            "no_data_area_pct": "Porcentaje (0-100) del área construida sin datos satelitales sobre el total del uso. Origen: derivado de las áreas.",
         },
     },
     "neighborhood_summary": {
@@ -289,6 +316,7 @@ map_df = (s.select(
     "debris_index",
     color.alias("color_hex"),
     "is_suspect_polygon",
+    "land_use", "cadastre_floor_count", "cadastre_built_area_m2", "economic_destination_code", "cadastre_match_method",
     "geom_wkt",
 )
     .join(zones, on="building_id", how="left")
@@ -384,8 +412,8 @@ spark.table(gold_map_facilities).groupBy("facility_type_code").count().orderBy("
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Resúmenes por comuna, barrio y zona sísmica
-# MAGIC Misma función para los tres niveles. Porcentajes: `(roof_loss + debris) / (no_change + roof_loss + debris)`, por conteo y por área construida.
+# MAGIC ### Resúmenes por comuna, barrio, zona sísmica y uso del suelo
+# MAGIC Misma función para los cuatro niveles. Porcentajes: `(roof_loss + debris) / (no_change + roof_loss + debris)`, por conteo y por área construida.
 
 # COMMAND ----------
 
@@ -444,9 +472,17 @@ zone_df = zone_df.select(*zone_cols, *[c for c in zone_df.columns if c not in zo
 zone_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(gold_zone)
 apply_comments(gold_zone, DOCS["seismic_zone_summary"]["table"], DOCS["seismic_zone_summary"]["columns"])
 
-print(f"Guardadas {gold_commune}, {gold_neighborhood} y {gold_zone}")
+# Uso del suelo del catastro: los edificios sin match quedan en una fila con land_use nulo ("sin dato de catastro")
+land_use_df = summarize(s, ["land_use"])
+land_use_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(gold_land_use)
+apply_comments(gold_land_use, DOCS["land_use_summary"]["table"], DOCS["land_use_summary"]["columns"])
+n_land_use = spark.table(gold_land_use).agg(F.sum("building_count")).first()[0]
+assert n_land_use == 5146, n_land_use
+
+print(f"Guardadas {gold_commune}, {gold_neighborhood}, {gold_zone} y {gold_land_use}")
 
 # COMMAND ----------
 
 display(spark.table(gold_zone).orderBy(F.col("damaged_area_pct").desc_nulls_last()))
 display(spark.table(gold_commune).orderBy(F.col("damaged_area_pct").desc_nulls_last()))
+display(spark.table(gold_land_use).orderBy(F.col("building_count").desc()))
