@@ -81,6 +81,9 @@ databricks.yml                         # bundle, variables y targets
 resources/el_equipo_medallion.job.yml  # job serverless: setup → bronze → silver → gold → export
 src/setup/   src/bronze/   src/silver/   src/gold/   src/export/   # un notebook .py por paso, por capa
 scripts/upload_data.sh                 # sube el crudo al volumen
+scripts/diagrams/                     # generador DBML desde Unity Catalog y ChartDB local
+tools/diagrams/                       # validador DBML (importación ChartDB)
+docs/diagrams/                        # diagramas de datos .dbml + imágenes (ver Skill 4)
 data/                                  # datos locales, en .gitignore (nunca se suben)
 ```
 
@@ -168,6 +171,16 @@ Cuando solicite los textos de entrega para el correo (`marcelasabogue@ieee.org`,
   * **Diapositiva 1 (Arquitectura):** Decisiones justificadas en `bronze`, `silver` y `gold`.
   * **Diapositiva 2 (Análisis y Respuesta):** Afectaciones encontradas + factores que reducen el impacto de réplicas, respaldados con datos de `gold`.
   * **Diapositiva 3 (El Mapa):** Pantallazo del mapa final + qué se eligió mostrar, por qué y cómo responde las preguntas.
+
+### Skill 4: `chartdb-diagrams` (Diagramas de datos, herramienta oficial: ChartDB)
+**ChartDB es la herramienta oficial para diagramas de datos.** Guía completa: `docs/diagrams/README.md`.
+* **Fuente de verdad:** archivos DBML en `docs/diagrams/*.dbml`, versionados en Git. ChartDB no tiene conector para Databricks y en su versión cloud la exportación DBML/JSON es paga: se importa DBML (pantalla inicial: PostgreSQL › pestaña DBML › Import; con un diagrama abierto: *Actions › Import*) y se exporta la imagen (*Actions › Export as › PNG/SVG*) a `docs/diagrams/img/`, con un *Area* por capa porque ChartDB no importa `TableGroup`.
+* **Generar desde Databricks:** `python3 scripts/diagrams/catalog_to_dbml.py --schema dev_<usuario> --relaciones docs/diagrams/relaciones_logicas.json --out docs/diagrams/<nombre>.dbml`. Para tablas aún no corridas, escribe el DBML desde el notebook con nombres y tipos exactos.
+* **Validar siempre** antes del PR: `npm ci --prefix tools/diagrams` (una vez) y `node tools/diagrams/validate_dbml.mjs docs/diagrams`. Reproduce la importación de ChartDB 1.21.0.
+* **Visualizar:** `bash scripts/diagrams/chartdb.sh up` → `http://localhost:8080` (o app.chartdb.io).
+* **Convenciones:** nombre real de la tabla sin esquema, tipos de Databricks tal cual, `pk` en la llave del grano, `note` con la decisión de cada tabla y columna derivada, `Ref` `>` (muchos a uno) o `-` (linaje del mismo edificio entre capas), `TableGroup` y `headercolor` por capa.
+* **En Databricks:** documenta con `COMMENT ON TABLE/COLUMN` y declara PK/FK informativas (`NOT ENFORCED`) en el modelo estrella de gold, al final del notebook después de escribir; el generador las dibuja.
+* **Regla de PR:** si un PR crea, renombra o borra tablas o columnas, actualiza el `.dbml` y la imagen en el mismo PR. Sin eso, el revisor lo rechaza.
 
 ---
 

@@ -1,0 +1,14 @@
+{
+  "name": "el-equipo-diagrams",
+  "private": true,
+  "description": "Validacion de diagramas DBML para ChartDB (DataBridge Hack, El Equipo)",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "validate": "node validate_dbml.mjs ../../docs/diagrams"
+  },
+  "devDependencies": {
+    "@dbml/cli": "3.14.1",
+    "@dbml/core": "3.14.1"
+  }
+}

@@ -5,3 +5,5 @@ __pycache__/
 *.geojson
 .DS_Store
 *.xlsx
+node_modules/
+dbml-error.log

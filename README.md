@@ -124,6 +124,20 @@ En `mode: development` el job y los notebooks quedan en la carpeta de cada usuar
 - Los notebooks son `.py` (formato fuente de Databricks) para que el diff sea legible en el PR.
 - Commits en inglés con Conventional Commits. No subir datos ni archivos Excel.
 
+## Diagramas de datos (ChartDB)
+
+ChartDB es la herramienta oficial para diagramas de datos. Los diagramas se guardan como DBML en `docs/diagrams/` y se importan en ChartDB para verlos y exportar la imagen. Guía completa: [`docs/diagrams/README.md`](docs/diagrams/README.md).
+
+```bash
+npm ci --prefix tools/diagrams                       # una vez
+python3 scripts/diagrams/catalog_to_dbml.py --schema dev_<usuario> \
+    --relaciones docs/diagrams/relaciones_logicas.json --out docs/diagrams/catalogo_dev.dbml
+node tools/diagrams/validate_dbml.mjs docs/diagrams  # valida como lo importa ChartDB
+bash scripts/diagrams/chartdb.sh up                  # http://localhost:8080 → PostgreSQL › DBML › Import
+```
+
+Todo PR que cambie tablas o columnas actualiza también su `.dbml`.
+
 ## Llevar el mapa a Kepler.gl / QGIS
 
 1. Corre el job completo (genera `export/gold_el_equipo_mapa_edificios.geojson`).
