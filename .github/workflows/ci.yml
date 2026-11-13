@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Debe ser una version publicada del CLI de Databricks (la que usa el equipo).
+  DATABRICKS_CLI_VERSION: "1.26.0"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compilar Python (notebooks y scripts)
+        run: |
+          find src scripts -name '*.py' -print0 | xargs -0 -n1 python -I -X utf8 -m py_compile
+
+      - name: Sintaxis de scripts bash
+        run: |
+          for f in scripts/*.sh; do bash -n "$f"; done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validar JavaScript inline de map/index.html
+        run: |
+          python -I -X utf8 - <<'PY'
+          import re, pathlib
+          html = pathlib.Path("map/index.html").read_text(encoding="utf-8")
+          out = []
+          for m in re.finditer(r"<script([^>]*)>(.*?)</script>", html, re.S | re.I):
+              if "src=" in m.group(1).lower():
+                  continue
+              out.append(m.group(2))
+          if not out:
+              raise SystemExit("No se encontro JavaScript inline en map/index.html")
+          pathlib.Path("inline_map.js").write_text("\n;\n".join(out), encoding="utf-8")
+          PY
+          node --check inline_map.js
+
+      - name: Versiones exactas de librerias del mapa
+        run: |
+          grep -Eq 'maplibre-gl@[0-9]+\.[0-9]+\.[0-9]+' map/index.html
+          grep -Eq 'deck\.gl@[0-9]+\.[0-9]+\.[0-9]+' map/index.html
+
+      - name: Validar diagramas DBML
+        run: |
+          if ls docs/diagrams/*.dbml >/dev/null 2>&1; then
+            npm ci --prefix tools/diagrams
+            node tools/diagrams/validate_dbml.mjs docs/diagrams
+          else
+            echo "Sin archivos .dbml en docs/diagrams; se omite."
+          fi
+
+  bundle-validate:
+    runs-on: ubuntu-latest
+    needs: checks
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - name: Comprobar credenciales
+        id: creds
+        run: |
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::notice::DATABRICKS_HOST/DATABRICKS_TOKEN no configurados; se omite bundle validate."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.creds.outputs.skip != 'true'
+
+      - uses: databricks/setup-cli@v1.26.0
+        if: steps.creds.outputs.skip != 'true'
+        with:
+          version: ${{ env.DATABRICKS_CLI_VERSION }}
+
+      - name: bundle validate (dev)
+        if: steps.creds.outputs.skip != 'true'
+        run: databricks bundle validate -t dev
+
+      - name: bundle validate (team)
+        if: steps.creds.outputs.skip != 'true'
+        run: databricks bundle validate -t team

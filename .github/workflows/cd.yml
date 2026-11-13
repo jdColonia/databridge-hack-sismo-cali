@@ -1,0 +1,122 @@
+# CD: se ejecuta en cada push a main (y a mano con workflow_dispatch).
+#
+# Flujo:
+#   1. changes     : detecta si cambiaron archivos del pipeline o del mapa.
+#   2. pipeline    : si cambio el pipeline (o se pide a mano), valida, despliega y
+#                    ejecuta el job el_equipo_medallion en el target `team`.
+#   3. build-map   : descarga los GeoJSON del volumen de Unity Catalog (los datos
+#                    nunca se versionan) y arma el sitio estatico (_site/).
+#   4. deploy-map  : publica el sitio en GitHub Pages.
+#
+# Configuracion requerida en el repositorio:
+#   - Variable  DATABRICKS_HOST  : URL del workspace.
+#   - Secret    DATABRICKS_TOKEN : token personal de acceso de Databricks.
+#   - Settings > Pages > Source  : GitHub Actions.
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_pipeline:
+        description: "Desplegar y ejecutar el pipeline en team"
+        type: boolean
+        default: true
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+env:
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+  # Debe ser una version publicada del CLI de Databricks (la que usa el equipo).
+  DATABRICKS_CLI_VERSION: "1.26.0"
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      pipeline: ${{ steps.filter.outputs.pipeline }}
+      map: ${{ steps.filter.outputs.map }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            pipeline:
+              - databricks.yml
+              - resources/**
+              - src/**
+              - reference/**
+            map:
+              - map/**
+              - scripts/download_map_data.sh
+              - .github/workflows/cd.yml
+
+  pipeline:
+    needs: changes
+    if: (github.event_name == 'workflow_dispatch' && inputs.run_pipeline) || needs.changes.outputs.pipeline == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v1.26.0
+        with:
+          version: ${{ env.DATABRICKS_CLI_VERSION }}
+      - name: Comprobar credenciales
+        run: |
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::error::Falta la variable DATABRICKS_HOST o el secret DATABRICKS_TOKEN."
+            exit 1
+          fi
+      - run: databricks bundle validate -t team
+      - run: databricks bundle deploy -t team
+      - run: databricks bundle run el_equipo_medallion -t team
+
+  build-map:
+    needs: [changes, pipeline]
+    if: always() && (needs.pipeline.result == 'success' || needs.pipeline.result == 'skipped') && (needs.changes.outputs.map == 'true' || needs.pipeline.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v1.26.0
+        with:
+          version: ${{ env.DATABRICKS_CLI_VERSION }}
+      - name: Comprobar credenciales
+        run: |
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::error::Falta la variable DATABRICKS_HOST o el secret DATABRICKS_TOKEN."
+            exit 1
+          fi
+      - name: Descargar GeoJSON del volumen
+        run: bash scripts/download_map_data.sh
+      - name: Armar sitio estatico
+        run: |
+          mkdir -p _site
+          cp map/index.html _site/
+          mkdir -p _site/data
+          cp map/data/*.geojson _site/data/
+          touch _site/.nojekyll
+          ls -lR _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy-map:
+    needs: build-map
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
