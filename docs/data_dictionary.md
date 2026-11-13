@@ -14,6 +14,11 @@ Los nombres reales de las tablas llevan el esquema y el prefijo del equipo (`{ca
 | Bronze | `bronze_el_equipo_idesc_cadastre_neighborhoods` | Un código catastral de barrio (52) |
 | Bronze | `bronze_el_equipo_idesc_cadastre_parcels` | Un registro del catastro |
 | Bronze | `bronze_el_equipo_manual_code_catalog` | Un código de un dominio |
+| Bronze | `bronze_el_equipo_idesc_seismic_zones` | Un polígono de microzonificación sísmica (16) |
+| Bronze | `bronze_el_equipo_idesc_health_facilities`, `_idesc_security_facilities`, `_idesc_schools`, `_idesc_public_spaces` | Un elemento de cada capa de equipamientos |
+| Bronze | `bronze_el_equipo_usgs_earthquakes` | Un sismo (principal más réplicas M ≥ 3,5) |
+| Bronze | `bronze_el_equipo_usgs_aftershock_forecast` | Una ventana por magnitud mínima del pronóstico (20) |
+| Bronze | `bronze_el_equipo_manual_official_impact` | Una métrica oficial de impacto (6) |
 | Silver | `silver_el_equipo_communes` | Una comuna |
 | Silver | `silver_el_equipo_neighborhoods` | Un barrio o sector oficial (342) |
 | Silver | `silver_el_equipo_cadastre_neighborhoods` | Un código catastral de barrio de los edificios (52) |
@@ -21,15 +26,18 @@ Los nombres reales de las tablas llevan el esquema y el prefijo del equipo (`{ca
 | Silver | `silver_el_equipo_code_catalog` | Un código de un dominio |
 | Silver | `silver_el_equipo_buildings` | Un edificio (5.146) |
 | Silver | `silver_el_equipo_neighborhood_crosswalk` | Un par código catastral → barrio oficial (54) |
-| Silver | `silver_el_equipo_osm_facilities` | Un equipamiento de OpenStreetMap |
-| Silver | `silver_el_equipo_building_facility_distances` | Un edificio |
+| Silver | `silver_el_equipo_seismic_zones` | Un polígono de microzonificación sísmica (16) |
+| Silver | `silver_el_equipo_building_seismic_zones` | Un edificio (5.146) |
+| Silver | `silver_el_equipo_facilities` | Un equipamiento de Cali |
+| Silver | `silver_el_equipo_building_facility_distances` | Un edificio (5.146) |
 | Gold | `gold_el_equipo_map_buildings` | Un edificio (5.146) |
 | Gold | `gold_el_equipo_commune_summary` | Una comuna oficial con edificios |
 | Gold | `gold_el_equipo_neighborhood_summary` | Un barrio oficial con edificios |
+| Gold | `gold_el_equipo_seismic_zone_summary` | Una zona de microzonificación (por nombre) con edificios |
 
 ## Bronze
 
-Bronze guarda el dato tal como llega, sin limpiar. Las tablas del IDESC y la manual conservan los nombres originales de las columnas y agregan los metadatos de ingesta `_source_url` (de dónde salió) y `_queried_at` (cuándo se consultó). `bronze_el_equipo_hackathon_buildings` es la excepción documentada: 21 columnas originales y sin metadatos.
+Bronze guarda el dato tal como llega, sin limpiar. Las tablas del IDESC, el USGS y la manual conservan los nombres originales de las columnas y agregan los metadatos de ingesta `_source_url` (de dónde salió) y `_queried_at` (cuándo se consultó); las que pueden leerse de una copia de respaldo agregan además `_load_origin` (`wfs`, `api` o `volume_copy`). `bronze_el_equipo_hackathon_buildings` es la excepción documentada: 21 columnas originales y sin metadatos.
 
 ### `bronze_el_equipo_hackathon_buildings`
 
@@ -164,6 +172,183 @@ Bronze guarda el dato tal como llega, sin limpiar. Las tablas del IDESC y la man
 | `estado` | string | Estado de verificación en español |
 | `_source_url` | string | Metadato de ingesta: URL de la capa consultada (o ruta del CSV en el repositorio) |
 | `_queried_at` | string | Metadato de ingesta: fecha y hora de la consulta, del `manifest.json` |
+
+### `bronze_el_equipo_idesc_seismic_zones`
+
+- **Grano:** Un polígono de microzonificación sísmica (16 filas × 25 columnas).
+- **Llave:** `feature_id` (`zona_mzsc` se repite).
+- **Fuente:** IDESC `idesc:mc_microzonificacion_sismica` (WFS). Conserva las 20 propiedades originales con sus nombres originales; las medidas son `double` y las `*_etl` quedan como texto.
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `feature_id` | string | Identificador del feature en el WFS (`zona_mzsc` se repite) |
+| `area` | double | Área en el CRS original de la capa (no sirve como medida) |
+| `perimeter` | double | Perímetro en el CRS original de la capa |
+| `mcooiiain_` | bigint | Columna basura del origen; se descarta en silver |
+| `mcooiiain1` | bigint | Columna basura del origen; se descarta en silver |
+| `mcooiiai_1` | double | Columna basura del origen; se descarta en silver |
+| `mcooiiai_2` | double | Columna basura del origen; se descarta en silver |
+| `zona_mzsc` | string | Nombre de la zona de microzonificación (ej. 'Zona 4C'); se repite en varios polígonos |
+| `label` | string | Etiqueta de la zona en la capa |
+| `am_etc` | double | Espectro ETC, aceleración máxima (g); 0 significa estudio particular |
+| `sm_etc` | double | Espectro ETC, aceleración de la meseta (g); 0 significa estudio particular |
+| `to_etc` | double | Espectro ETC, periodo t0 (s); 0 significa estudio particular |
+| `tc_etc` | double | Espectro ETC, periodo tc (s); 0 significa estudio particular |
+| `tl_etc` | double | Espectro ETC, periodo tl (s); 0 significa estudio particular |
+| `am_etl` | string | Espectro ETL, aceleración máxima (g), como texto; casi siempre nulo |
+| `sm_etl` | string | Espectro ETL, aceleración de la meseta (g), como texto; casi siempre nulo |
+| `to_etl` | string | Espectro ETL, periodo t0 (s), como texto; casi siempre nulo |
+| `tc_etl` | string | Espectro ETL, periodo tc (s), como texto; casi siempre nulo |
+| `tl_etl` | string | Espectro ETL, periodo tl (s), como texto; casi siempre nulo |
+| `sucep_licu` | bigint | Susceptibilidad a licuación (1 = susceptible) |
+| `corrim_lat` | bigint | Riesgo de corrimiento lateral (1 = hay riesgo) |
+| `geometry` | string | Geometría GeoJSON como texto, EPSG:4326 (lon, lat) |
+| `_source_url` | string | Metadato de ingesta: URL del WFS consultado |
+| `_load_origin` | string | Metadato de ingesta: `wfs` o `volume_copy` |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta (de la copia, su fecha de modificación) |
+
+### `bronze_el_equipo_idesc_health_facilities`
+
+- **Grano:** Un elemento de la capa.
+- **Llave:** `feature_id`.
+- **Fuente:** IDESC `pot_2014:eqp_uco_salud` (WFS).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `feature_id` | string | Identificador del feature en el WFS |
+| `categoria` | string | Categoría del equipamiento de salud (ej. 'Hospitales - Hospitalización') |
+| `nombre` | string | Nombre |
+| `localizaci` | string | Dirección o localización |
+| `nivel` | string | Nivel de atención |
+| `propiedad` | string | Propiedad (PUB o PRIV) |
+| `(otras propiedades)` | string | El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga) |
+| `geometry` | string | Geometría GeoJSON como texto, EPSG:4326 (lon, lat) |
+| `_source_url` | string | Metadato de ingesta: URL de la capa consultada |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: `wfs` o `volume_copy` |
+
+### `bronze_el_equipo_idesc_security_facilities`
+
+- **Grano:** Un elemento de la capa.
+- **Llave:** `feature_id`.
+- **Fuente:** IDESC `pot_2014:eqp_uba_seguridad_ciudadana` (WFS).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `feature_id` | string | Identificador del feature en el WFS |
+| `tipo` | string | Tipo (CAI, estación, bomberos, Defensa Civil...) |
+| `nombre` | string | Nombre |
+| `localizaci` | string | Dirección o localización |
+| `propiedad` | string | Propiedad (PUB o PRIV) |
+| `(otras propiedades)` | string | El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga) |
+| `geometry` | string | Geometría GeoJSON como texto, EPSG:4326 (lon, lat) |
+| `_source_url` | string | Metadato de ingesta: URL de la capa consultada |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: `wfs` o `volume_copy` |
+
+### `bronze_el_equipo_idesc_schools`
+
+- **Grano:** Un elemento de la capa.
+- **Llave:** `feature_id`.
+- **Fuente:** IDESC `educacion:esf_establecimiento_educativo` (WFS).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `feature_id` | string | Identificador del feature en el WFS |
+| `eeestado` | string | Estado de la sede (ej. 'Oficial') |
+| `eenomsede` | string | Nombre de la sede |
+| `eedirecc` | string | Dirección |
+| `ieomatrtot` | string | Matrícula total |
+| `(otras propiedades)` | string | El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga) |
+| `geometry` | string | Geometría GeoJSON como texto, EPSG:4326 (lon, lat) |
+| `_source_url` | string | Metadato de ingesta: URL de la capa consultada |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: `wfs` o `volume_copy` |
+
+### `bronze_el_equipo_idesc_public_spaces`
+
+- **Grano:** Un elemento de la capa.
+- **Llave:** `feature_id`.
+- **Fuente:** IDESC `dapm:pdt_pmep_encuentro` (WFS).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `feature_id` | string | Identificador del feature en el WFS |
+| `ecrpotele` | string | Tipo de elemento de espacio público (POT) |
+| `ecrnomcom` | string | Nombre común |
+| `ecrdirecci` | string | Dirección |
+| `(otras propiedades)` | string | El resto de propiedades originales de la capa, con sus nombres originales, todas como texto (la lista exacta la define la capa en cada descarga) |
+| `geometry` | string | Geometría GeoJSON como texto, EPSG:4326 (lon, lat) |
+| `_source_url` | string | Metadato de ingesta: URL de la capa consultada |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: `wfs` o `volume_copy` |
+
+### `bronze_el_equipo_usgs_earthquakes`
+
+- **Grano:** Un sismo (sismo principal más réplicas M ≥ 3,5 dentro del círculo oficial de la secuencia).
+- **Llave:** `event_id`.
+- **Fuente:** USGS, API FDSN `event/1/query` (evento `us6000tjl2`).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `event_id` | string | Identificador del evento en el USGS |
+| `magnitude` | double | Magnitud |
+| `magnitude_type` | string | Tipo de magnitud (mww, mb...) |
+| `place` | string | Descripción del lugar |
+| `event_time` | timestamp | Hora del evento, UTC |
+| `depth_km` | double | Profundidad en km |
+| `lon` | double | Longitud en grados |
+| `lat` | double | Latitud en grados |
+| `event_type` | string | Tipo de evento según el USGS |
+| `status` | string | Estado de revisión |
+| `url` | string | Página del evento en el USGS |
+| `is_mainshock` | boolean | Verdadero para el sismo principal `us6000tjl2` |
+| `_source_url` | string | Metadato de ingesta: URL de la consulta a la API |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: de dónde se leyó el crudo (`wfs` o `volume_copy` para el IDESC; `api` o `volume_copy` para el USGS) |
+
+### `bronze_el_equipo_usgs_aftershock_forecast`
+
+- **Grano:** Una combinación de ventana de tiempo y magnitud mínima del pronóstico (4 ventanas × 5 magnitudes = 20).
+- **Llave:** `window_label` + `min_magnitude`.
+- **Fuente:** USGS, producto `oaf` del evento `us6000tjl2` (`forecast.json`, modelo ETAS).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `forecast_created_at` | timestamp | Fecha de creación del pronóstico, UTC |
+| `advisory_time_frame` | string | Periodo de validez del aviso |
+| `window_label` | string | Ventana: 1 Day, 1 Week, 1 Month o 1 Year |
+| `window_start_at` | timestamp | Inicio de la ventana, UTC |
+| `window_end_at` | timestamp | Fin de la ventana, UTC |
+| `min_magnitude` | double | Magnitud mínima de la réplica (3 a 7) |
+| `probability` | double | Probabilidad (0 a 1, tal como la publica el USGS) de al menos una réplica de esa magnitud en la ventana |
+| `expected_count_median` | bigint | Mediana del número esperado de réplicas |
+| `expected_count_p95_min` | bigint | Límite inferior del rango del 95 % del número esperado |
+| `expected_count_p95_max` | bigint | Límite superior del rango del 95 % del número esperado |
+| `_source_url` | string | Metadato de ingesta: URL del `forecast.json` |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la consulta |
+| `_load_origin` | string | Metadato de ingesta: de dónde se leyó el crudo (`wfs` o `volume_copy` para el IDESC; `api` o `volume_copy` para el USGS) |
+
+### `bronze_el_equipo_manual_official_impact`
+
+- **Grano:** Una métrica oficial de impacto (6).
+- **Llave:** `metric_code`.
+- **Fuente:** `reference/official_impact.csv` (curado a mano: Alcaldía de Santiago de Cali, repositorio oficial, corte 16 oct 2026; la cifra de 308 edificaciones colapsadas atribuida a UNGRD/DANE queda 'por verificar' porque no se encontró la fuente).
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `metric_code` | string | Código de la métrica (deaths, injured, rescued, missing, total_collapses, collapsed_buildings) |
+| `metric_name` | string | Nombre de la métrica |
+| `value` | double | Valor |
+| `unit` | string | Unidad |
+| `scope` | string | Alcance geográfico |
+| `source_name` | string | Fuente |
+| `source_url` | string | Enlace a la fuente; vacío si no se encontró |
+| `cutoff_date` | string | Fecha de corte; vacía si no se conoce |
+| `verification_status` | string | Estado de verificación en español (`verificada` o `por verificar`) |
+| `note` | string | Nota sobre la cifra |
+| `_source_url` | string | Metadato de ingesta: ruta del CSV en el repositorio |
+| `_queried_at` | timestamp | Metadato de ingesta: fecha y hora (UTC) de la carga |
 
 ## Silver
 
@@ -333,49 +518,117 @@ Equivalencia entre el código de barrio catastral de los edificios y el barrio o
 | `is_same_code` | boolean | Verdadero si el código catastral coincide con el oficial; nulo si no hay código catastral. | cadastral_neighborhood_code = neighborhood_code |
 | `building_count` | bigint | Número de edificios del dataset con ese par de códigos. | conteo sobre silver_el_equipo_buildings |
 
-### `silver_el_equipo_osm_facilities`
+### `silver_el_equipo_seismic_zones`
 
-Hospitales y clínicas, colegios y estaciones de bomberos de OpenStreetMap dentro del bbox de los edificios (+0,01°), un punto por elemento. Fuente: OpenStreetMap vía Overpass; puede quedar sin crear si Overpass no responde.
+Zonas de la microzonificación sísmica de Cali, una fila por polígono (16). ETC y ETL son los dos espectros de la microzonificación sísmica (estudio INGEOMINAS–DAGMA 2005, Decreto 411.0.20.0158 de 2014); su significado exacto está por verificar en el decreto. Notación del estudio: am = aceleración máxima (g), sm = aceleración de la meseta espectral (g), t0/tc/tl = periodos (s). Un nombre de zona puede repetirse con distintos riesgos: la llave es seismic_zone_id. Origen: bronze_el_equipo_idesc_seismic_zones (IDESC, capa mc_microzonificacion_sismica).
 
-- **Grano:** Un equipamiento de OpenStreetMap.
-- **Llave:** `osm_id`.
-- **Fuente:** OpenStreetMap vía Overpass API (respaldo de las capas del IDESC).
-- **Notebook:** `src/silver/silver_osm_facilities.py`.
+- **Grano:** Un polígono de microzonificación (16).
+- **Llave:** `seismic_zone_id` (el nombre de zona se repite).
+- **Fuente:** `bronze_el_equipo_idesc_seismic_zones` (IDESC `idesc:mc_microzonificacion_sismica`).
+- **Notebook:** `src/silver/silver_seismic_zones.py`.
 
 | Columna | Tipo | Descripción | Origen |
 | --- | --- | --- | --- |
-| `osm_id` | bigint | Identificador del elemento en OpenStreetMap, formato 'tipo/id' (ej. 'node/123'). | Overpass API |
-| `facility_type` | string | Tipo de equipamiento: hospital (incluye clínicas), school o fire_station. | etiqueta amenity de OpenStreetMap |
-| `facility_name` | string | Nombre del equipamiento; nulo si OpenStreetMap no lo trae. | etiqueta name de OpenStreetMap |
-| `lon` | double | Longitud del punto en grados, EPSG:4326 (centro si es polígono). | Overpass API |
-| `lat` | double | Latitud del punto en grados, EPSG:4326 (centro si es polígono). | Overpass API |
-| `geom_wkt` | string | Punto del equipamiento en WKT, EPSG:4326 (lon, lat). | lon y lat |
+| `seismic_zone_id` | string | Identificador del polígono (id del feature en el WFS del IDESC); es la llave, el nombre de zona se repite. | bronze, feature_id |
+| `seismic_zone_name` | string | Nombre de la zona de microzonificación (ej. 'Zona 4C'); puede repetirse (Zona 6 x2, Cauce Activo o Terra x3). | bronze, zona_mzsc |
+| `etc_am_g` | double | Espectro ETC, aceleración máxima (am) en g; nulo si la zona requiere estudio particular. | bronze, am_etc (0 pasa a nulo) |
+| `etc_sm_g` | double | Espectro ETC, aceleración de la meseta espectral (sm) en g; nulo si la zona requiere estudio particular. | bronze, sm_etc (0 pasa a nulo) |
+| `etc_t0_s` | double | Espectro ETC, periodo t0 en segundos; nulo si la zona requiere estudio particular. | bronze, to_etc (0 pasa a nulo) |
+| `etc_tc_s` | double | Espectro ETC, periodo tc en segundos; nulo si la zona requiere estudio particular. | bronze, tc_etc (0 pasa a nulo) |
+| `etc_tl_s` | double | Espectro ETC, periodo tl en segundos; nulo si la zona requiere estudio particular. | bronze, tl_etc (0 pasa a nulo) |
+| `etl_am_g` | double | Espectro ETL, aceleración máxima (am) en g; solo Zona 4B, 5 y 4C, el resto nulo. | bronze, am_etl (texto a double) |
+| `etl_sm_g` | double | Espectro ETL, aceleración de la meseta espectral (sm) en g; solo Zona 4B, 5 y 4C, el resto nulo. | bronze, sm_etl (texto a double) |
+| `etl_t0_s` | double | Espectro ETL, periodo t0 en segundos; solo Zona 4B, 5 y 4C, el resto nulo. | bronze, to_etl (texto a double) |
+| `etl_tc_s` | double | Espectro ETL, periodo tc en segundos; solo Zona 4B, 5 y 4C, el resto nulo. | bronze, tc_etl (texto a double) |
+| `etl_tl_s` | double | Espectro ETL, periodo tl en segundos; solo Zona 4B, 5 y 4C, el resto nulo. | bronze, tl_etl (texto a double) |
+| `is_liquefaction_susceptible` | boolean | Verdadero si el suelo de la zona es susceptible a licuación. | bronze, sucep_licu = 1 |
+| `has_lateral_spread_risk` | boolean | Verdadero si la zona tiene riesgo de corrimiento lateral. | bronze, corrim_lat = 1 |
+| `requires_site_study` | boolean | Verdadero si la zona requiere estudio particular de sitio: todos los valores ETC venían en 0, que no significa aceleración nula. | derivado de los ETC |
+| `area_m2` | double | Área del polígono en m² recalculada en EPSG:9377. | geometría reproyectada |
+| `geom_wkt` | string | Geometría de la zona en WKT, EPSG:4326 (lon, lat), reparada con make_valid si era inválida. | bronze, geometry |
 
-### `silver_el_equipo_building_facility_distances`
+### `silver_el_equipo_building_seismic_zones`
 
-Distancia en metros de cada edificio al hospital, colegio y estación de bomberos más cercanos de OpenStreetMap, una fila por edificio. Calculada desde el centroide en EPSG:9377.
+Zona de microzonificación sísmica de cada edificio, una fila por edificio (5.146). Se asigna la zona con mayor área de intersección con la huella (cruce en EPSG:9377); los edificios que no tocan ninguna zona quedan con nulos. ETC y ETL son los dos espectros de la microzonificación sísmica (estudio INGEOMINAS–DAGMA 2005, Decreto 411.0.20.0158 de 2014); su significado exacto está por verificar en el decreto. Origen: silver_el_equipo_buildings y silver_el_equipo_seismic_zones.
 
-- **Grano:** Un edificio.
+- **Grano:** Un edificio (5.146).
 - **Llave:** `building_id`.
-- **Fuente:** `silver_el_equipo_buildings` y `silver_el_equipo_osm_facilities`.
-- **Notebook:** `src/silver/silver_osm_facilities.py`.
+- **Fuente:** `silver_el_equipo_buildings` y `silver_el_equipo_seismic_zones` (cruce espacial en EPSG:9377).
+- **Notebook:** `src/silver/silver_seismic_zones.py`.
 
 | Columna | Tipo | Descripción | Origen |
 | --- | --- | --- | --- |
 | `building_id` | bigint | Identificador del edificio. | silver_el_equipo_buildings |
-| `nearest_hospital_m` | double | Distancia en m al hospital o clínica más cercano, en EPSG:9377; nula si no hay ninguno en el bbox. | sjoin_nearest con silver_el_equipo_osm_facilities |
-| `nearest_school_m` | double | Distancia en m al colegio más cercano, en EPSG:9377; nula si no hay ninguno en el bbox. | sjoin_nearest con silver_el_equipo_osm_facilities |
-| `nearest_fire_station_m` | double | Distancia en m a la estación de bomberos más cercana, en EPSG:9377; nula si no hay ninguna en el bbox. | sjoin_nearest con silver_el_equipo_osm_facilities |
+| `seismic_zone_id` | string | Identificador de la zona elegida (mayor área de intersección; empate, el menor id); nulo si el edificio no toca ninguna zona. | silver_el_equipo_seismic_zones |
+| `seismic_zone_name` | string | Nombre de la zona elegida; nulo si no toca ninguna. | silver_el_equipo_seismic_zones |
+| `etc_am_g` | double | Espectro ETC, aceleración máxima (am) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_seismic_zones |
+| `etc_sm_g` | double | Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_seismic_zones |
+| `etc_tc_s` | double | Espectro ETC, periodo tc en segundos de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_seismic_zones |
+| `is_liquefaction_susceptible` | boolean | Verdadero si la zona elegida es susceptible a licuación; nulo si no hay zona. | silver_el_equipo_seismic_zones |
+| `has_lateral_spread_risk` | boolean | Verdadero si la zona elegida tiene riesgo de corrimiento lateral; nulo si no hay zona. | silver_el_equipo_seismic_zones |
+| `requires_site_study` | boolean | Verdadero si la zona elegida requiere estudio particular de sitio (sin valores ETC); nulo si no hay zona. | silver_el_equipo_seismic_zones |
+| `seismic_zone_overlap_count` | int | Número de polígonos de zona que toca la huella del edificio (0 si ninguno). Mayor que 1 indica un edificio sobre el borde entre zonas. | cruce espacial en EPSG:9377 |
+| `seismic_zone_overlap_pct` | double | Porcentaje (0 a 100) de la huella del edificio que cae dentro de la zona elegida; nulo si no hay zona. | área de intersección sobre area_m2, en EPSG:9377 |
+
+### `silver_el_equipo_facilities`
+
+Equipamientos de toda Cali (salud, bomberos y Defensa Civil, policía, sedes educativas y espacio público de encuentro), un equipamiento por fila. Fuente: capas oficiales del IDESC (Alcaldía de Santiago de Cali); las capas pot_2014 (salud y seguridad) no traen fecha, probablemente 2014; las sedes educativas se actualizaron en 2023–2024; el espacio público viene del PMEP 2021–2023. Pueden incluir equipamientos que ya no existen.
+
+- **Grano:** Un equipamiento de Cali (salud, bomberos y Defensa Civil, policía, sedes educativas y espacio público).
+- **Llave:** `facility_id`.
+- **Fuente:** Las cuatro bronze `bronze_el_equipo_idesc_health_facilities`, `_idesc_security_facilities`, `_idesc_schools` y `_idesc_public_spaces`.
+- **Notebook:** `src/silver/silver_facilities.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `facility_id` | string | Identificador del equipamiento, formato '<capa>.<id del WFS>' (ej. 'health.eqp_uco_salud.484'). | bronze idesc, feature_id |
+| `source_layer` | string | Capa de origen: health, security, schools o public_spaces. | tabla bronze idesc de la que sale |
+| `facility_type_code` | string | Tipo unificado: health, emergency (bomberos y Defensa Civil), police (resto de seguridad ciudadana, incluye tipo nulo), school u open_space. | derivado de la capa y de tipo |
+| `facility_subtype` | string | Subtipo original: categoria (salud), tipo (seguridad), eeestado (sedes educativas) o ecrpotele (espacio público); nulo si venía vacío. | bronze idesc |
+| `facility_name` | string | Nombre del equipamiento (nombre, eenomsede o ecrnomcom); nulo si venía vacío. | bronze idesc |
+| `address` | string | Dirección o localización (localizaci, eedirecc o ecrdirecci); nula si venía vacía. | bronze idesc |
+| `is_hospital` | boolean | Verdadero si es de salud con categoría 'Hospitales - Hospitalización'; falso para el resto. | derivado de categoria |
+| `care_level` | int | Nivel de atención de salud (1, 2 o 3); nulo si no es de salud o no tiene nivel. | bronze idesc, nivel |
+| `is_public` | boolean | Verdadero si es público (propiedad PUB o estado Oficial); falso si es privado (PRIV) o no oficial; nulo si no aplica o no se sabe. | propiedad (salud) o eeestado (colegios) |
+| `enrollment_count` | int | Matrícula total de la sede educativa, en estudiantes; nulo si no es colegio. | bronze idesc, ieomatrtot |
+| `area_m2` | double | Área de la huella en m² calculada en EPSG:9377; nula para puntos (sedes educativas). | geometría reproyectada |
+| `is_in_study_area` | boolean | Verdadero si el equipamiento intersecta el bbox de los edificios ampliado 2.000 m (EPSG:9377). | cruce espacial con silver_el_equipo_buildings |
+| `lon` | double | Longitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. | representative_point calculado en EPSG:4326 |
+| `lat` | double | Latitud de un punto representativo dentro del equipamiento, en grados, EPSG:4326. | representative_point calculado en EPSG:4326 |
+| `geom_wkt` | string | Geometría del equipamiento en WKT, EPSG:4326 (lon, lat), ya reparada. | bronze idesc, geometry |
+
+### `silver_el_equipo_building_facility_distances`
+
+Distancia en metros de cada edificio al equipamiento más cercano de cada tipo, una fila por edificio (5.146). Medida en EPSG:9377 desde el centroide del edificio hasta la geometría del equipamiento (0 si está dentro), con todos los equipamientos de Cali. Fuente: capas oficiales del IDESC (Alcaldía de Santiago de Cali); salud y seguridad sin fecha (probablemente 2014), colegios 2023–2024, espacio público PMEP 2021–2023.
+
+- **Grano:** Un edificio (5.146).
+- **Llave:** `building_id`.
+- **Fuente:** `silver_el_equipo_buildings` y `silver_el_equipo_facilities`.
+- **Notebook:** `src/silver/silver_facilities.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `building_id` | bigint | Identificador del edificio. | silver_el_equipo_buildings |
+| `nearest_health_m` | double | Distancia en m al equipamiento de salud más cercano (hospital o no). | sjoin_nearest con silver_el_equipo_facilities (tipo health), EPSG:9377 |
+| `nearest_hospital_m` | double | Distancia en m al hospital más cercano (salud con is_hospital). | sjoin_nearest con silver_el_equipo_facilities, EPSG:9377 |
+| `nearest_emergency_m` | double | Distancia en m a la estación de bomberos o sede de Defensa Civil más cercana. | sjoin_nearest con silver_el_equipo_facilities (tipo emergency), EPSG:9377 |
+| `nearest_police_m` | double | Distancia en m al equipamiento de policía más cercano (CAI, estaciones, etc.). | sjoin_nearest con silver_el_equipo_facilities (tipo police), EPSG:9377 |
+| `nearest_school_m` | double | Distancia en m a la sede educativa más cercana. | sjoin_nearest con silver_el_equipo_facilities (tipo school), EPSG:9377 |
+| `nearest_open_space_m` | double | Distancia en m al espacio público de encuentro más cercano (borde del polígono; 0 si el edificio está dentro). | sjoin_nearest con silver_el_equipo_facilities (tipo open_space), EPSG:9377 |
+| `nearest_hospital_name` | string | Nombre del hospital más cercano; nulo si el hospital no tiene nombre. | silver_el_equipo_facilities, facility_name |
+| `nearest_emergency_name` | string | Nombre de la estación de bomberos o sede de Defensa Civil más cercana; nulo si no tiene nombre. | silver_el_equipo_facilities, facility_name |
+| `nearest_open_space_name` | string | Nombre del espacio público más cercano; nulo si no tiene nombre. | silver_el_equipo_facilities, facility_name |
+| `open_space_count_500m` | int | Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. | cruce espacial con silver_el_equipo_facilities (tipo open_space), EPSG:9377 |
 
 ## Gold
 
 ### `gold_el_equipo_map_buildings`
 
-Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, distancias a equipamientos (si existen) y geometría WKT. Incluye polígonos dudosos con su bandera.
+Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, zona de microzonificación sísmica del IDESC, distancias a equipamientos del IDESC y geometría WKT. Incluye polígonos dudosos con su bandera.
 
 - **Grano:** Un edificio (5.146).
 - **Llave:** `building_id`.
-- **Fuente:** `silver_el_equipo_buildings` y, si existe, `silver_el_equipo_building_facility_distances`.
+- **Fuente:** `silver_el_equipo_buildings`, `silver_el_equipo_building_seismic_zones` y `silver_el_equipo_building_facility_distances` (uniones por `building_id`).
 - **Notebook:** `src/gold/gold_map_and_summaries.py`.
 
 | Columna | Tipo | Descripción | Origen |
@@ -394,9 +647,26 @@ Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, 
 | `debris_index` | double | Índice de escombros satelital. | silver_el_equipo_buildings |
 | `color_hex` | string | Color para el mapa según el estado: azul no_change, naranja roof_loss, rojo debris, gris no_data. | derivado de structural_status_code |
 | `is_suspect_polygon` | boolean | Verdadero si el polígono es dudoso (área menor de 5 m², mayor de 50.000 m² o vacío). | silver_el_equipo_buildings |
-| `nearest_hospital_m` | double | Distancia en m al hospital o clínica más cercano (OpenStreetMap); solo existe si corrió silver_osm_facilities. | silver_el_equipo_building_facility_distances |
-| `nearest_school_m` | double | Distancia en m al colegio más cercano (OpenStreetMap); solo existe si corrió silver_osm_facilities. | silver_el_equipo_building_facility_distances |
-| `nearest_fire_station_m` | double | Distancia en m a la estación de bomberos más cercana (OpenStreetMap); solo existe si corrió silver_osm_facilities. | silver_el_equipo_building_facility_distances |
+| `seismic_zone_id` | string | Identificador de la zona de microzonificación elegida (mayor área de intersección con la huella); nulo si el edificio no toca ninguna zona. | silver_el_equipo_building_seismic_zones |
+| `seismic_zone_name` | string | Nombre de la zona de microzonificación elegida (ej. 'Zona 4C'); nulo si no toca ninguna. | silver_el_equipo_building_seismic_zones |
+| `etc_am_g` | double | Espectro ETC, aceleración máxima (am) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_building_seismic_zones |
+| `etc_sm_g` | double | Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_building_seismic_zones |
+| `etc_tc_s` | double | Espectro ETC, periodo tc en segundos de la zona; nulo si la zona requiere estudio particular o no hay zona. | silver_el_equipo_building_seismic_zones |
+| `is_liquefaction_susceptible` | boolean | Verdadero si la zona elegida es susceptible a licuación; nulo si no hay zona. | silver_el_equipo_building_seismic_zones |
+| `has_lateral_spread_risk` | boolean | Verdadero si la zona elegida tiene riesgo de corrimiento lateral; nulo si no hay zona. | silver_el_equipo_building_seismic_zones |
+| `requires_site_study` | boolean | Verdadero si la zona elegida requiere estudio particular de sitio (sin valores ETC); nulo si no hay zona. | silver_el_equipo_building_seismic_zones |
+| `seismic_zone_overlap_count` | int | Número de polígonos de zona que toca la huella del edificio (0 si ninguno). Mayor que 1 indica un edificio sobre el borde entre zonas. | silver_el_equipo_building_seismic_zones |
+| `seismic_zone_overlap_pct` | double | Porcentaje (0 a 100) de la huella del edificio que cae dentro de la zona elegida; nulo si no hay zona. | silver_el_equipo_building_seismic_zones |
+| `nearest_health_m` | double | Distancia en m al equipamiento de salud más cercano (hospital o no). | silver_el_equipo_building_facility_distances |
+| `nearest_hospital_m` | double | Distancia en m al hospital más cercano (salud con is_hospital). | silver_el_equipo_building_facility_distances |
+| `nearest_emergency_m` | double | Distancia en m a la estación de bomberos o sede de Defensa Civil más cercana. | silver_el_equipo_building_facility_distances |
+| `nearest_police_m` | double | Distancia en m al equipamiento de policía más cercano (CAI, estaciones, etc.). | silver_el_equipo_building_facility_distances |
+| `nearest_school_m` | double | Distancia en m a la sede educativa más cercana. | silver_el_equipo_building_facility_distances |
+| `nearest_open_space_m` | double | Distancia en m al espacio público de encuentro más cercano (borde del polígono; 0 si el edificio está dentro). | silver_el_equipo_building_facility_distances |
+| `nearest_hospital_name` | string | Nombre del hospital más cercano; nulo si el hospital no tiene nombre. | silver_el_equipo_building_facility_distances |
+| `nearest_emergency_name` | string | Nombre de la estación de bomberos o sede de Defensa Civil más cercana; nulo si no tiene nombre. | silver_el_equipo_building_facility_distances |
+| `nearest_open_space_name` | string | Nombre del espacio público más cercano; nulo si no tiene nombre. | silver_el_equipo_building_facility_distances |
+| `open_space_count_500m` | int | Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. | silver_el_equipo_building_facility_distances |
 | `geom_wkt` | string | Geometría del edificio en WKT, EPSG:4326 (lon, lat). | silver_el_equipo_buildings |
 
 ### `gold_el_equipo_commune_summary`
@@ -457,6 +727,41 @@ Resumen del daño por barrio oficial (DIVIPOLA 2026): conteos y área construida
 | `no_data_building_pct` | double | Porcentaje (0-100) de edificios sin datos satelitales sobre el total del barrio. | derivado de los conteos |
 | `no_data_area_pct` | double | Porcentaje (0-100) del área construida sin datos satelitales sobre el total del barrio. | derivado de las áreas |
 
+### `gold_el_equipo_seismic_zone_summary`
+
+Resumen del daño por zona de microzonificación sísmica (agrupado por nombre de zona, que se repite entre polígonos): conteos y área construida por estado estructural, porcentajes de daño y de cobertura sin datos, pisos promedio y medianas de distancia al hospital y al espacio público de encuentro. Una fila por zona con edificios del dataset, más una fila con zona nula si hay edificios que no tocan ninguna zona.
+
+- **Grano:** Una zona de microzonificación (por nombre) con edificios, más una fila con zona nula si hay edificios sin zona.
+- **Llave:** `seismic_zone_name`.
+- **Fuente:** `gold_el_equipo_map_buildings`.
+- **Notebook:** `src/gold/gold_map_and_summaries.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `seismic_zone_name` | string | Nombre de la zona de microzonificación (ej. 'Zona 4C'); nulo para los edificios que no tocan ninguna zona. | silver_el_equipo_building_seismic_zones |
+| `etc_am_g` | double | Espectro ETC, aceleración máxima (am) en g de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. | silver_el_equipo_building_seismic_zones |
+| `etc_sm_g` | double | Espectro ETC, aceleración de la meseta espectral (sm) en g de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. | silver_el_equipo_building_seismic_zones |
+| `etc_tc_s` | double | Espectro ETC, periodo tc en segundos de la zona (máximo entre sus polígonos); nulo si la zona requiere estudio particular. | silver_el_equipo_building_seismic_zones |
+| `is_liquefaction_susceptible` | boolean | Verdadero si algún edificio de la zona está en suelo susceptible a licuación. | silver_el_equipo_building_seismic_zones |
+| `requires_site_study` | boolean | Verdadero si algún edificio de la zona requiere estudio particular de sitio (sin valores ETC). | silver_el_equipo_building_seismic_zones |
+| `building_count` | bigint | Número de edificios de la zona. | conteo sobre silver_el_equipo_buildings |
+| `no_change_building_count` | bigint | Edificios con estado no_change (sin cambio aparente). | conteo por structural_status_code |
+| `roof_loss_building_count` | bigint | Edificios con estado roof_loss (posible pérdida de techo). | conteo por structural_status_code |
+| `debris_building_count` | bigint | Edificios con estado debris (alta probabilidad de escombros). | conteo por structural_status_code |
+| `no_data_building_count` | bigint | Edificios sin datos satelitales (no_data). | conteo por structural_status_code |
+| `built_area_m2` | double | Área construida total en m². | suma de built_area_m2 de silver_el_equipo_buildings |
+| `no_change_built_area_m2` | double | Área construida en m² de los edificios no_change. | suma por structural_status_code |
+| `roof_loss_built_area_m2` | double | Área construida en m² de los edificios roof_loss. | suma por structural_status_code |
+| `debris_built_area_m2` | double | Área construida en m² de los edificios debris. | suma por structural_status_code |
+| `no_data_built_area_m2` | double | Área construida en m² de los edificios no_data. | suma por structural_status_code |
+| `damaged_building_pct` | double | Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. | derivado de los conteos |
+| `damaged_area_pct` | double | Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. | derivado de las áreas |
+| `no_data_building_pct` | double | Porcentaje (0-100) de edificios sin datos satelitales sobre el total de la zona. | derivado de los conteos |
+| `no_data_area_pct` | double | Porcentaje (0-100) del área construida sin datos satelitales sobre el total de la zona. | derivado de las áreas |
+| `avg_floor_count` | bigint | Promedio de pisos de los edificios de la zona con número de pisos válido; nulo si ninguno lo tiene. | promedio de floor_count de silver_el_equipo_buildings |
+| `median_nearest_hospital_m` | double | Mediana en m de la distancia al hospital más cercano de los edificios de la zona. | mediana de nearest_hospital_m de silver_el_equipo_building_facility_distances |
+| `median_nearest_open_space_m` | double | Mediana en m de la distancia al espacio público de encuentro más cercano de los edificios de la zona. | mediana de nearest_open_space_m de silver_el_equipo_building_facility_distances |
+
 ## Export
 
-`export/gold_el_equipo_map_buildings.geojson` en el volumen: las filas de `gold_el_equipo_map_buildings` como GeoJSON en EPSG:4326 (`[lon, lat]`), con `geom_wkt` convertido en geometría. Lo genera `src/export/export_geojson.py`.
+`export/gold_el_equipo_map_buildings.geojson` en el volumen: las filas de `gold_el_equipo_map_buildings` como GeoJSON en EPSG:4326 (`[lon, lat]`), con `geom_wkt` convertido en geometría. Las propiedades incluyen las del mapa (zona sísmica y distancias a equipamientos, con las distancias redondeadas a metros enteros). Lo genera `src/export/export_geojson.py`.

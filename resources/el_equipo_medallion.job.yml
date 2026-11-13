@@ -28,11 +28,25 @@ resources:
             notebook_path: ../src/bronze/bronze_idesc_references.py
             base_parameters: *params
 
-        - task_key: bronze_microzonificacion
+        - task_key: bronze_idesc_seismic_zones
           depends_on:
             - task_key: setup_volume
           notebook_task:
-            notebook_path: ../src/bronze/bronze_microzonificacion.py
+            notebook_path: ../src/bronze/bronze_idesc_seismic_zones.py
+            base_parameters: *params
+
+        - task_key: bronze_idesc_facilities
+          depends_on:
+            - task_key: setup_volume
+          notebook_task:
+            notebook_path: ../src/bronze/bronze_idesc_facilities.py
+            base_parameters: *params
+
+        - task_key: bronze_usgs_context
+          depends_on:
+            - task_key: setup_volume
+          notebook_task:
+            notebook_path: ../src/bronze/bronze_usgs_context.py
             base_parameters: *params
 
         - task_key: silver_references
@@ -57,16 +71,26 @@ resources:
             notebook_path: ../src/silver/silver_neighborhood_crosswalk.py
             base_parameters: *params
 
-        - task_key: silver_osm_facilities
+        - task_key: silver_seismic_zones
           depends_on:
+            - task_key: bronze_idesc_seismic_zones
             - task_key: silver_buildings
           notebook_task:
-            notebook_path: ../src/silver/silver_osm_facilities.py
+            notebook_path: ../src/silver/silver_seismic_zones.py
+            base_parameters: *params
+
+        - task_key: silver_facilities
+          depends_on:
+            - task_key: bronze_idesc_facilities
+            - task_key: silver_buildings
+          notebook_task:
+            notebook_path: ../src/silver/silver_facilities.py
             base_parameters: *params
 
         - task_key: gold_map_and_summaries
           depends_on:
-            - task_key: silver_osm_facilities
+            - task_key: silver_seismic_zones
+            - task_key: silver_facilities
             - task_key: silver_neighborhood_crosswalk
           notebook_task:
             notebook_path: ../src/gold/gold_map_and_summaries.py

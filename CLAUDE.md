@@ -51,16 +51,18 @@ Convención de nombres `<capa>_el_equipo_<contenido>` (ej. `bronze_el_equipo_hac
 | ---- | ----- | ------ |
 | Bronze | `bronze_el_equipo_hackathon_buildings` (5.146 filas × 21 columnas) | **Creada** en `workspace.default` |
 | Bronze | `bronze_el_equipo_idesc_communes`, `_idesc_neighborhoods`, `_idesc_cadastre_parcels`, `_idesc_cadastre_neighborhoods`, `bronze_el_equipo_manual_code_catalog` | Probadas en `dev`; referencias ya subidas al volumen compartido |
+| Bronze | `bronze_el_equipo_idesc_seismic_zones`, `_idesc_health_facilities`, `_idesc_security_facilities`, `_idesc_schools`, `_idesc_public_spaces`, `bronze_el_equipo_usgs_earthquakes`, `_usgs_aftershock_forecast`, `bronze_el_equipo_manual_official_impact` | Escritas; pendiente correrlas |
 | Silver | `silver_el_equipo_buildings` (con comuna/barrio oficiales y catastro) | Probada en `dev`; pendiente en `team` |
 | Silver | `silver_el_equipo_communes`, `_neighborhoods`, `_cadastre_parcels`, `_cadastre_neighborhoods`, `_code_catalog` | Probadas en `dev` |
 | Silver | `silver_el_equipo_neighborhoods` (342 barrios oficiales) y `silver_el_equipo_neighborhood_crosswalk` | Probadas en `dev` |
-| Silver | `silver_el_equipo_osm_facilities`, `silver_el_equipo_building_facility_distances` y otras fuentes externas | Pendiente |
-| Gold | `gold_el_equipo_map_buildings`, `_commune_summary`, `_neighborhood_summary` (provisionales) | Pendiente de correr en `team`; el modelo estrella está por definir |
+| Silver | `silver_el_equipo_seismic_zones` (16 zonas) y `_building_seismic_zones` (zona de cada edificio) | Escritas; pendiente correrlas |
+| Silver | `silver_el_equipo_facilities` y `_building_facility_distances` (distancias a salud, hospital, bomberos/Defensa Civil, policía, colegios y espacio público) | Escritas; pendiente correrlas |
+| Gold | `gold_el_equipo_map_buildings` (con zona sísmica y distancias), `_commune_summary`, `_neighborhood_summary`, `_seismic_zone_summary` (provisionales) | Pendiente de correr en `team`; el modelo estrella está por definir |
 
 * **Capa Bronze (`bronze_el_equipo_*`):**
   * Ingesta cruda desde el volumen compartido `/Volumes/workspace/default/el_equipo/Datosprediales.json` (ya subido).
   * Esquema exacto de `bronze_el_equipo_hackathon_buildings`: **5.146 filas y 21 columnas** (20 propiedades intactas + `geometry` como texto GeoJSON), con los nombres originales y sin metadatos. Cero transformaciones (excepción documentada en `docs/conventions.md`).
-  * **Cada fuente externa entra primero a bronze, en crudo**, con las columnas originales más `_source_url` y `_queried_at` (`bronze_el_equipo_<source>_<entity>`). Nunca directo a silver.
+  * **Cada fuente externa entra primero a bronze, en crudo**, con las columnas originales más `_source_url`, `_queried_at` y `_load_origin` (`wfs`, `api` o `volume_copy`) (`bronze_el_equipo_<source>_<entity>`). Nunca directo a silver.
 * **Capa Silver (`silver_el_equipo_*`):**
   * Limpieza de strings (`TRIM`, vacíos a null), código de barrio catastral `cadastral_neighborhood_code` (`CCBB`), `floor_count`, reparación de geometría (`is_geometry_repaired`), bandera `is_suspect_polygon` (área < 5 m² o > 50.000 m²: 344 edificios miden menos de 5 m²; se marcan, no se borran).
   * Reproyección a `EPSG:9377` para `area_m2`, `perimeter_m` y `built_area_m2`. Centroide `lon`/`lat` en 4326. `structural_status_code` (`no_change`, `roof_loss`, `debris`, `no_data`) y `damage_level` ordinal.
@@ -68,7 +70,7 @@ Convención de nombres `<capa>_el_equipo_<contenido>` (ej. `bronze_el_equipo_hac
 * **Capa Gold (`gold_el_equipo_*`): modelo estrella (pendiente de definir).**
   * Grano decidido: **una fila por edificio** (`building_id`) en la tabla de hechos `fact_buildings`.
   * Dimensiones ya claras: `dim_structural_status` (4 categorías, orden, color) y `dim_territory` (comuna, barrio, manzana), que sale de `silver_el_equipo_neighborhoods`. **Usar siempre `neighborhood_code/neighborhood_name` y `commune_code/commune_name`** (DIVIPOLA 2026 por ubicación, cubre los 5.146 edificios) para nombres, mapa y agregaciones; `cadastral_neighborhood_code` es solo el código catastral del dataset (su traducción está en `silver_el_equipo_neighborhood_crosswalk`).
-  * Pendientes según fuentes: `dim_seismic_zone` (microzonificación), intensidad del sismo (PGA/MMI como medidas del hecho), distancias a equipamientos, `fact_aftershocks` (una fila por sismo, contexto temporal).
+  * Ya existen como silver: la zona de microzonificación de cada edificio (`silver_el_equipo_building_seismic_zones`, candidata a `dim_seismic_zone`) y las distancias a equipamientos (`silver_el_equipo_building_facility_distances`); ambas se unen en `gold_el_equipo_map_buildings`. Pendientes: intensidad del sismo (PGA/MMI como medidas del hecho) y `fact_aftershocks` (una fila por sismo, contexto temporal; la tabla bronze `bronze_el_equipo_usgs_earthquakes` ya está).
   * El mapa sale de una **vista plana** que une hechos y dimensiones (`gold_el_equipo_map_buildings`); esa vista es la que se exporta a GeoJSON.
   * El notebook actual `src/gold/gold_map_and_summaries.py` (tablas planas) es provisional y se reemplaza al definir la estrella.
   * **CRÍTICO PARA EXPORTACIÓN DE MAPA:** Antes de exportar Gold a `.geojson`, **reproyectar de vuelta a `EPSG:4326`** verificando orden `[longitud, latitud]` (`[-76.5..., 3.4...]`), incluir solo columnas necesarias para tooltips/filtros y una columna categórica/numérica limpia lista para colorear (ej. `aftershock_risk_level`, `color_hex` o `mitigation_priority_index`).
@@ -123,10 +125,11 @@ databricks bundle run el_equipo_medallion -t dev -p el-equipo --only silver_buil
 
 | Fuente | Estado | Uso |
 | ------ | ------ | --- |
-| **USGS, evento `us6000tjl2`** (M7,4, 10 ago 2026, 116 km de profundidad). [Evento](https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2), ShakeMap `grid.xml` (MMI, PGA, Vs30) y réplicas por API FDSN | Verificada | Contexto de intensidad. En el área de los edificios el MMI varía poco (6,4–7,1): no explica diferencias entre edificios. Réplicas: usar el círculo oficial de la secuencia USGS (centro 4,4791 / −76,5739, radio 125,4 km): 60 réplicas M≥3,5 al 13 nov, la mayor **M5,0 (10 ago, `us6000tjm4`)**. La M5,4 del 3 nov (Rioblanco, Tolima, 10 km de profundidad) queda fuera del círculo: **no es réplica** |
+| **USGS, evento `us6000tjl2`** (M7,4, 10 ago 2026, 116 km de profundidad). [Evento](https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2), ShakeMap `grid.xml` (MMI, PGA, Vs30) y réplicas por API FDSN | Verificada | Contexto de intensidad. En el área de los edificios el MMI varía poco (6,4–7,1): no explica diferencias entre edificios. Réplicas: usar el círculo oficial de la secuencia USGS (centro 4,4791 / −76,5739, radio 125,4 km): 60 réplicas M≥3,5 al 13 nov, la mayor **M5,0 (10 ago, `us6000tjm4`)**. La M5,4 del 3 nov (Rioblanco, Tolima, 10 km de profundidad) queda fuera del círculo: **no es réplica**. Pronóstico oficial (producto `oaf`): P(M≥5) en el próximo mes = 31,5 % (`bronze_el_equipo_usgs_aftershock_forecast`). |
 | **IDESC, microzonificación sísmica** `idesc:mc_microzonificacion_sismica` (16 zonas: `zona_mzsc`, `tc_etc`, `sucep_licu`, `corrim_lat`). WFS: `https://ws-idesc.cali.gov.co/geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=idesc:mc_microzonificacion_sismica&outputFormat=application/json&srsName=EPSG:4326` | Verificada 13 nov 2026 (HTTP 200, 16 polígonos, 835 KB). Estudio INGEOMINAS–DAGMA 2005, adoptado por el Decreto 411.0.20.0158 de 2014 | **Cruce principal:** suelo × daño × pisos (resonancia). Explica el *por qué*. Ver trampas abajo |
 | **IDESC, equipamientos:** `pot_2014:eqp_uco_salud` (482), `pot_2014:eqp_uba_seguridad_ciudadana` (bomberos, Defensa Civil), `educacion:esf_establecimiento_educativo` (356, actualizada 2023–2024), `dapm:pdt_pmep_encuentro` | Revisadas por el agente de investigación. Capas `pot_2014` sin fecha (probablemente 2014) | **Segundo cruce:** distancia a la ayuda más cercana. Responde *qué reduce el impacto de las réplicas* |
-| OpenStreetMap (Overpass) | No respondió en las pruebas | Solo como respaldo del IDESC |
+| OpenStreetMap (Overpass) | **Descartada:** no respondió en las pruebas | Ya no se usa; los equipamientos salen del IDESC |
+| **Cifras oficiales de impacto**, Alcaldía de Santiago de Cali: [Repositorio oficial](https://www.cali.gov.co/boletines/publicaciones/193607/terremoto-de-cali-repositorio-oficial-de-informacion/), corte 16 oct 2026 | Verificada | Contexto: 154 fallecidos, 1.657 lesionados, 88 rescatados, 14 desaparecidos y 24 edificaciones con colapso total (`reference/official_impact.csv`). La cifra de 308 edificaciones colapsadas atribuida a UNGRD/DANE queda **por verificar** (no se encontró la fuente) |
 | Población por comuna (Planeación / DANE) | No verificada | Pendiente |
 | Prensa (Infobae: 74 muertos en Cali) | Sin fuente oficial | Citar como "prensa", no como dato oficial |
 
@@ -140,7 +143,7 @@ Zonas que tocan el bbox de los edificios (`am_etc` y `sm_etc` en g, `tc_etc` en 
 1. **Los ceros no son cero:** en `Depositos Antropicos`, `Suelo Coluvion` y `Cauce Activo o Terra` los campos `*_etc` valen `0`, que significa "requiere estudio particular". En silver pasarlos a `NULL` con bandera `requiere_estudio_particular`; nunca tratarlos como aceleración cero.
 2. **Polígonos repetidos:** `Zona 6` aparece 2 veces y `Cauce Activo o Terra` 3, con igual `area`/`perimeter` pero distinto `sucep_licu`/`corrim_lat`. No deduplicar por nombre: conservar el `id` del feature y revisar edificios que caigan en más de un polígono.
 3. **Columnas basura y tipos:** descartar `mcooiiain_`, `mcooiiain1`, `mcooiiai_1`, `mcooiiai_2`. Las `*_etl` vienen como texto (`'0.40'`) y casi siempre nulas: castear o ignorar. `area`/`perimeter` están en el CRS original; si se necesita área, recalcular en EPSG:9377.
-4. **Cruce:** `sjoin` directo edificio → microzona en EPSG:9377 (no pasa por barrios, que son la fuente del compañero).
+4. **Cruce:** `sjoin` directo edificio → microzona en EPSG:9377 (no pasa por barrios). Implementado en `silver_el_equipo_building_seismic_zones`.
 5. **Respaldo:** la infografía de El País (sept 2026, `multimedia.elpais.com.co/2026/Septiembre/Un_mes_despues_Cali_sigue_de_pie/infografia/microzonas-v9.html`) trae la tabla barrio → microzona (342 barrios, % por zona) con los mismos valores. Usar solo si el GeoServer cae; es fuente secundaria (prensa).
 6. **Fecha para el correo:** la capa no trae fecha. Citar el estudio de 2005 y el decreto de 2014 (sin verificar en el texto del decreto).
 * En la lista de fuentes del correo, anotar la **fecha del dato**, no la fecha de descarga.
@@ -158,15 +161,10 @@ Cuando te pida código o análisis, aplica automáticamente estas habilidades:
 
 ### Skill 2: `fast-external-data-cali` (Extracción y Cruce de Fuentes Externas)
 Cuando te pida descargar o cruzar datos externos de Cali para responder el *por qué* del daño y *qué reduce el impacto de las réplicas*:
-0. **Primero el IDESC** (sección 5): fuente oficial y verificada. OpenStreetMap queda como respaldo. La salida a internet desde serverless en Free Edition no está comprobada; si falla, descargar localmente a `data/external/` y subir al volumen.
-1. **OpenStreetMap vía Overpass API (respaldo):** Genera una celda Python usando `requests` contra `https://overpass-api.de/api/interpreter` usando el *bounding box* dinámico de los edificios (`min_lat, min_lon, max_lat, max_lon`) para extraer:
-   * `amenity~"hospital|clinic"` (Salud / IPS críticas)
-   * `amenity~"school|university|college"` (Educación)
-   * `amenity~"fire_station|police"` (Atención de emergencias)
-   * `leisure~"park|pitch|recreation_ground"` (Espacios abiertos seguros / puntos de encuentro libres de escombros ante réplicas)
-   * `highway~"primary|secondary|trunk"` (Corredores viales críticos de evacuación y acceso)
+0. **Primero el IDESC** (sección 5): fuente oficial y verificada. OpenStreetMap se descartó porque no respondió. La salida a internet desde serverless en Free Edition no está comprobada; si falla, descargar localmente a `data/external/` y subir al volumen (copia de respaldo que lee el bronze, `_load_origin = 'volume_copy'`).
+1. **Equipamientos del IDESC** (`silver_el_equipo_facilities`): salud (hospitales aparte con `is_hospital`), bomberos y Defensa Civil (`emergency`), policía, sedes educativas y espacio público de encuentro (`open_space`, puntos de reunión libres de escombros ante réplicas). Las distancias exactas en metros salen de `silver_el_equipo_building_facility_distances` (`nearest_hospital_m`, `nearest_emergency_m`, `nearest_open_space_m`, `open_space_count_500m`).
 2. **Microzonificación Sísmica / Suelo de Cali (IDESC - Alcaldía de Cali):** Si cargamos un Shapefile/GeoJSON de IDESC (`idesc.cali.gov.co`) en el Volume, crúzalo espacialmente en `EPSG:9377` para asignar a cada edificio su zona de respuesta sísmica / tipo de suelo y correlacionarlo con `Estado_Estructural` y `NPISOS`.
-3. **Trazabilidad y Citación:** Guarda toda extracción externa cruda primero en `bronze_el_equipo_<source>_<entity>` (incluyendo `_source_url` y `_queried_at`) antes de limpiarla y cruzarla en `silver_el_equipo_*` para calcular distancias exactas en metros (`nearest_hospital_m`, `nearest_safe_park_m`, `nearest_main_road_m`).
+3. **Trazabilidad y Citación:** Guarda toda extracción externa cruda primero en `bronze_el_equipo_<source>_<entity>` (incluyendo `_source_url`, `_queried_at` y `_load_origin`) antes de limpiarla y cruzarla en `silver_el_equipo_*` para calcular distancias exactas en metros (`nearest_hospital_m`, `nearest_open_space_m`).
 
 ### Skill 3: `deliverables-generator` (Textos Exactos y Pitch de 5 Minutos)
 Cuando solicite los textos de entrega para el correo (`marcelasabogue@ieee.org`, asunto `databridgehack: El Equipo`), respeta **estrictamente** los límites de palabras de la guía:

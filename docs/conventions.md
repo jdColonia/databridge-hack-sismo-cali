@@ -45,15 +45,16 @@ La entidad principal del proyecto es el **edificio** (`buildings`).
 ## Formatos
 
 - **Vacíos:** cadena vacía o solo espacios pasa a `NULL` (`trim`) en silver.
-- **Categorías:** valores en `snake_case` inglés. Ejemplos: `structural_status_code` ∈ {`no_change`, `roof_loss`, `debris`, `no_data`}; `cadastre_match_method` ∈ {`parcel_id`, `connection`, `ambiguous_connection`, `no_match`}; `verification_status` ∈ {`verified`, `pending_verification`}; `facility_type` ∈ {`hospital`, `school`, `fire_station`}.
+- **Categorías:** valores en `snake_case` inglés. Ejemplos: `structural_status_code` ∈ {`no_change`, `roof_loss`, `debris`, `no_data`}; `cadastre_match_method` ∈ {`parcel_id`, `connection`, `ambiguous_connection`, `no_match`}; `verification_status` ∈ {`verified`, `pending_verification`}; `facility_type_code` ∈ {`health`, `emergency`, `police`, `school`, `open_space`}.
 - **Geometría:** se guarda en EPSG:4326 como `geom_wkt` más `lon` y `lat` del centroide. EPSG:9377 (MAGNA-SIRGAS / Origen Nacional) solo se usa para calcular áreas, perímetros y distancias en metros.
-- **Metadatos de ingesta** (solo en bronze de fuentes externas): `_source_url` y `_queried_at`, con guion bajo inicial para distinguirlos del dato.
+- **Metadatos de ingesta** (solo en bronze de fuentes externas): `_source_url`, `_queried_at` y, cuando el crudo puede leerse de una copia de respaldo, `_load_origin` (`'wfs'` | `'api'` | `'volume_copy'`: servicio WFS del IDESC, API del USGS o copia en el volumen). Llevan guion bajo inicial para distinguirlos del dato.
 - **Booleanos:** siempre con `is_` o `has_`; nulo significa "no se puede saber" (por ejemplo `is_neighborhood_code_current` es nulo si el edificio no tiene código catastral).
 
 ## Excepción documentada: bronze del hackathon
 
 `bronze_el_equipo_hackathon_buildings` conserva las **21 columnas originales con sus nombres originales** (`OBJECTID`, `COMUNA`, `NPISOS`, `Estado_Estructural`...) y no lleva metadatos de ingesta, porque la guía del reto verifica exactamente 5.146 filas × 21 columnas y bronze guarda el dato tal como llega.
-Las bronze de fuentes externas (`idesc`, `manual`) tampoco renombran sus columnas originales, pero sí agregan `_source_url` y `_queried_at`.
+Las bronze de fuentes externas (`idesc`, `usgs`, `manual`) tampoco renombran sus columnas originales, pero sí agregan `_source_url` y `_queried_at` (y `_load_origin` si leen de WFS, API o copia del volumen).
+`bronze_el_equipo_idesc_seismic_zones` conserva sus 20 nombres de propiedad originales (`zona_mzsc`, `am_etc`, `sucep_licu`...), incluidas las columnas basura (`mcooiiain_`...); solo agrega `feature_id` y la trazabilidad.
 La traducción a la convención ocurre en silver (`silver_buildings.py`, diccionario `RENAME`); es el único lugar del código, fuera de bronze, donde aparecen los nombres originales.
 
 ## Comentarios en Databricks

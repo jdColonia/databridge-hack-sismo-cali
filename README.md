@@ -6,6 +6,8 @@
 
 El sismo fue de magnitud 7,4 con epicentro en el Chocó ([USGS `us6000tjl2`](https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjl2)). Los datos base son 5.146 edificios de Cali (comunas 3, 9, 10, 17, 18, 19 y 20) con datos catastrales y un estado estructural inferido por análisis satelital (`Estado_Estructural`). La respuesta se construye en Databricks con arquitectura bronze / silver / gold, se enriquece con fuentes externas y se representa en un mapa.
 
+Los dos cruces principales con fuentes externas son la **microzonificación sísmica del IDESC** (en qué tipo de suelo está cada edificio) y los **equipamientos del IDESC** (distancia a hospitales, bomberos y Defensa Civil, policía, colegios y espacios públicos de encuentro). Como contexto se agregan el pronóstico de réplicas del USGS y las cifras oficiales de impacto de la Alcaldía. OpenStreetMap (Overpass) se descartó porque no respondió.
+
 ## Arquitectura (medallion)
 
 Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equipo` y siguen la convención de [`docs/conventions.md`](docs/conventions.md) (identificadores en inglés, textos en español). El detalle de cada tabla y columna está en [`docs/data_dictionary.md`](docs/data_dictionary.md). El job `el_equipo_medallion` las construye en orden.
@@ -15,16 +17,19 @@ Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equ
 | Setup  | volumen `el_equipo`                                    | Guarda crudo (`Datosprediales.json`), externos (`externos/`) y exportes (`export/`)                                                                                           |
 | Bronze | `bronze_el_equipo_hackathon_buildings`                 | Una fila por feature, 20 propiedades + `geometry` (texto GeoJSON), tal cual llega con sus nombres originales y sin metadatos (21 columnas)                                    |
 | Bronze | `bronze_el_equipo_idesc_communes`, `_idesc_neighborhoods`, `_idesc_cadastre_parcels`, `_idesc_cadastre_neighborhoods` | Capas oficiales del IDESC tal cual (22 comunas, 342 barrios DIVIPOLA 2026, catastro de los edificios, nombres catastrales de barrio), con `_source_url` y `_queried_at` |
+| Bronze | `bronze_el_equipo_idesc_seismic_zones`, `_idesc_health_facilities`, `_idesc_security_facilities`, `_idesc_schools`, `_idesc_public_spaces` | Microzonificación sísmica y equipamientos del IDESC tal cual (WFS, con copia de respaldo en el volumen), con `_source_url`, `_queried_at` y `_load_origin` |
+| Bronze | `bronze_el_equipo_usgs_earthquakes`, `_usgs_aftershock_forecast`, `_manual_official_impact` | Contexto: sismo principal y 60 réplicas M≥3,5 del USGS, pronóstico oficial de réplicas (P(M≥5) en el próximo mes: 31,5 %) y cifras oficiales de impacto de la Alcaldía (`reference/official_impact.csv`) |
 | Bronze | `bronze_el_equipo_manual_code_catalog`                 | Tabla de códigos catastrales curada a mano (`reference/codigos_catastrales.csv`), con `_source_url` y `_queried_at`                                                           |
 | Silver | `silver_el_equipo_communes`, `_neighborhoods`          | 22 comunas y 342 barrios oficiales DIVIPOLA 2026 (`neighborhood_code` `CCBB`, comuna, categoría, acuerdo y geometría WKT)                                                      |
 | Silver | `silver_el_equipo_cadastre_parcels`, `_cadastre_neighborhoods`, `_code_catalog` | Catastro de los edificios, nombre catastral por código de barrio (auxiliar) y significado de los códigos catastrales                                                        |
 | Silver | `silver_el_equipo_buildings`                           | Una fila por edificio: limpieza (trim, vacíos a null), códigos catastrales, pisos válidos, reparación de geometría, área/perímetro en EPSG:9377, centroide, estado y nivel de daño, WKT, comuna y barrio **oficiales por ubicación** y datos del catastro (`national_parcel_number`, `land_use`, `cadastre_floor_count`, `address`) |
 | Silver | `silver_el_equipo_neighborhood_crosswalk`              | Código catastral del dataset → barrio oficial por ubicación, con `is_same_code` y `building_count`                                                                            |
-| Silver | `silver_el_equipo_osm_facilities`                      | Hospitales/clínicas, colegios y bomberos de OpenStreetMap (Overpass) en el bbox de los edificios                                                                              |
-| Silver | `silver_el_equipo_building_facility_distances`         | Distancia en metros de cada edificio al hospital, colegio y estación de bomberos más cercanos                                                                                 |
-| Gold   | `gold_el_equipo_map_buildings`                         | Edificios con color, estado, área, bandera de polígono dudoso, distancias (si existen) y WKT                                                                                  |
+| Silver | `silver_el_equipo_seismic_zones`, `_building_seismic_zones` | 16 zonas de microzonificación sísmica del IDESC y la zona de cada edificio (aceleraciones ETC, licuación, estudio particular, traslape con otras zonas)                        |
+| Silver | `silver_el_equipo_facilities`, `_building_facility_distances` | Equipamientos del IDESC (salud, bomberos y Defensa Civil, policía, colegios, espacio público de encuentro) y distancia en metros de cada edificio al más cercano de cada tipo |
+| Gold   | `gold_el_equipo_map_buildings`                         | Edificios con color, estado, área, bandera de polígono dudoso, zona sísmica, distancias a equipamientos y WKT                                                                 |
 | Gold   | `gold_el_equipo_commune_summary`                       | Conteos, área construida y `damaged_building_pct`, `damaged_area_pct`, `no_data_area_pct` por comuna oficial                                                                  |
 | Gold   | `gold_el_equipo_neighborhood_summary`                  | Lo mismo por barrio oficial                                                                                                                                                   |
+| Gold   | `gold_el_equipo_seismic_zone_summary`                  | Lo mismo por zona de microzonificación sísmica, más pisos promedio y medianas de distancia al hospital y al espacio público                                                   |
 | Export | `export/gold_el_equipo_map_buildings.geojson`          | GeoJSON EPSG:4326 para Kepler.gl / QGIS                                                                                                                                       |
 
 Los notebooks están en `src/`, una carpeta por capa (formato fuente `.py`), y el job en `resources/el_equipo_medallion.job.yml` (serverless, sin clusters):
@@ -32,8 +37,8 @@ Los notebooks están en `src/`, una carpeta por capa (formato fuente `.py`), y e
 ```
 src/
 ├── setup/    setup_volume.py
-├── bronze/   bronze_hackathon_buildings.py, bronze_idesc_references.py   (+ un notebook por fuente externa)
-├── silver/   silver_references.py, silver_buildings.py, silver_neighborhood_crosswalk.py, silver_osm_facilities.py
+├── bronze/   bronze_hackathon_buildings.py, bronze_idesc_references.py, bronze_idesc_seismic_zones.py, bronze_idesc_facilities.py, bronze_usgs_context.py
+├── silver/   silver_references.py, silver_buildings.py, silver_neighborhood_crosswalk.py, silver_seismic_zones.py, silver_facilities.py
 ├── gold/     gold_map_and_summaries.py      (luego: dim_*.py, fact_*.py, vista del mapa)
 └── export/   export_geojson.py
 ```
@@ -55,7 +60,8 @@ Los nombres no llevan números: el orden lo define el job con `depends_on`. Para
 | `workspace.default.bronze_el_equipo_hackathon_buildings` (5.146 filas × 21 columnas) | Listo |
 | Referencias oficiales en el volumen (`/Volumes/workspace/default/el_equipo/externos/referencias/`) | Listo |
 | `bronze_idesc_references`, `silver_references`, `silver_buildings` y `silver_neighborhood_crosswalk` | Probados en `dev`; pendiente correrlos en `team` |
-| Silver (resto), gold y export | Pendiente |
+| `bronze_idesc_seismic_zones`, `bronze_idesc_facilities`, `bronze_usgs_context`, `silver_seismic_zones` y `silver_facilities` | Escritos; pendiente correrlos en `dev` y `team` |
+| Gold y export (con zona sísmica y distancias a equipamientos) | Pendiente de correr |
 
 ## Referencias oficiales de códigos
 
@@ -89,7 +95,7 @@ Un *Databricks Asset Bundle* describe en archivos de texto lo que debe existir e
 | Archivo | Qué define |
 | ------- | ---------- |
 | `databricks.yml` | Nombre del bundle, **variables** (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y **targets** (`dev`, `team`) |
-| `resources/el_equipo_medallion.job.yml` | El job: 9 tareas encadenadas, cada una corre un notebook con las variables como parámetros |
+| `resources/el_equipo_medallion.job.yml` | El job: 13 tareas encadenadas, cada una corre un notebook con las variables como parámetros |
 | `src/<capa>/*.py` | Los notebooks. Arman los nombres de tabla con los parámetros (`{catalog}.{schema}.bronze_{team}_hackathon_buildings`), nunca escritos a mano |
 | `scripts/upload_data.sh`, `scripts/download_referencias.py`, `scripts/upload_referencias.sh` | Ayudas para subir el crudo y descargar/subir las referencias oficiales (no son parte del bundle) |
 
@@ -97,8 +103,10 @@ El job corre en **serverless** (no declara clusters) y ejecuta en orden:
 
 ```
 setup_volume ─┬→ bronze_hackathon_buildings ──────────────┐
-              └→ bronze_idesc_references → silver_references ┴→ silver_buildings ─┬→ silver_neighborhood_crosswalk ─┐
-                                                                                  └→ silver_osm_facilities ─────────┴→ gold_map_and_summaries → export_geojson
+              ├→ bronze_idesc_references → silver_references ┴→ silver_buildings ─┬→ silver_neighborhood_crosswalk ─┐
+              ├→ bronze_idesc_seismic_zones ──────────────────────────────────────┼→ silver_seismic_zones ──────────┼→ gold_map_and_summaries → export_geojson
+              ├→ bronze_idesc_facilities ─────────────────────────────────────────┴→ silver_facilities ─────────────┘
+              └→ bronze_usgs_context   (contexto: réplicas, pronóstico y cifras oficiales; sin dependientes por ahora)
 ```
 
 **`deploy` vs `run`:**
