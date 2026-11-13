@@ -96,6 +96,13 @@ resources:
             notebook_path: ../src/gold/gold_map_and_summaries.py
             base_parameters: *params
 
+        - task_key: gold_event_context
+          depends_on:
+            - task_key: bronze_usgs_context
+          notebook_task:
+            notebook_path: ../src/gold/gold_event_context.py
+            base_parameters: *params
+
         - task_key: export_geojson
           depends_on:
             - task_key: gold_map_and_summaries
