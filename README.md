@@ -180,12 +180,33 @@ bash scripts/diagrams/chartdb.sh up                  # http://localhost:8080 →
 
 Todo PR que cambie tablas o columnas actualiza también su `.dbml`.
 
-## Llevar el mapa a Kepler.gl / QGIS
+## Mapa
 
-1. Corre el job completo (genera `export/gold_el_equipo_map_buildings.geojson`).
-2. En Databricks: Catalog > `workspace` > `default` > Volumes > `el_equipo` > `export` > descargar el `.geojson`.
-3. **Kepler.gl** (kepler.gl/demo): arrastra el archivo; en Fill Color elige `structural_status_code` (o usa `color_hex`) y en Filters `is_suspect_polygon = false` si quieres excluir dudosos.
-4. **QGIS:** Capa > Añadir capa vectorial; simboliza por categorías con `structural_status_code` (EPSG:4326).
+`map/index.html` es un mapa estático (MapLibre + deck.gl, sin build) que responde: *¿qué afectaciones generó el sismo del 10 de agosto en Cali y qué factores reducen el impacto de las réplicas?*
+
+**Capas (de abajo hacia arriba):**
+1. **Microzonas sísmicas**: relleno morado según la aceleración de diseño Sa (g); gris si requiere estudio particular o no tiene dato.
+2. **Espacios abiertos seguros**: polígonos verdes.
+3. **Edificios** (5.146): coloreados por *prioridad ante réplicas* (por defecto) o por *estado estructural* (selector en la leyenda).
+4. **Ayuda cercana**: hospitales y centros de salud (azul), bomberos y Defensa Civil (naranja) y, opcionalmente, colegios.
+
+**Regla de prioridad (criterio del equipo, no cifra oficial):** *Alta* = edificio dañado (pérdida de techo o escombros) con al menos un factor agravante: suelo licuable o que requiere estudio particular, hospital a más de 1 km, o ningún espacio abierto a 500 m. *Media* y *Baja* según el resto de la combinación; *Sin dato* si no hay análisis satelital.
+
+**Cómo correrlo:**
+
+```bash
+DATABRICKS_CONFIG_PROFILE=el-equipo bash scripts/download_map_data.sh   # SCHEMA=dev_<usuario> en desarrollo
+python -m http.server 8765 --directory map
+# abrir http://localhost:8765
+```
+
+El botón **Descargar PNG** genera `mapa_el_equipo.png` (mapa + título + leyenda): es la imagen de la diapositiva final.
+
+**Alternativa: Kepler.gl / QGIS**
+
+1. Corre el job completo y descarga `export/gold_el_equipo_map_buildings.geojson` (Catalog > Volumes > `el_equipo` > `export`).
+2. **Kepler.gl** (kepler.gl/demo): arrastra el archivo y usa `color_hex` o `priority_color_hex` en Fill Color.
+3. **QGIS:** Capa > Añadir capa vectorial; simboliza por categorías con `structural_status_code` (EPSG:4326).
 
 ## Entregables del viernes
 

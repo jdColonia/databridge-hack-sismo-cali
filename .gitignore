@@ -7,3 +7,5 @@ __pycache__/
 *.xlsx
 node_modules/
 dbml-error.log
+
+map/data/

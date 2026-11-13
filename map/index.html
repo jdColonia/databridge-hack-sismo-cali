@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sismo de Cali: daño y capacidad de respuesta ante réplicas</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+:root{
+  --bg:#f4f5f7; --card:rgba(255,255,255,.94); --ink:#1d2330; --muted:#5b6475; --line:#d5d9e0;
+  --accent:#5e3c99; --radius:10px; --shadow:0 2px 10px rgba(20,30,50,.18);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);background:var(--bg)}
+#map{position:absolute;inset:0}
+.card{position:absolute;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 12px;font-size:12.5px;line-height:1.35;z-index:5}
+#header{top:10px;left:10px;max-width:440px}
+#header h1{margin:0 0 4px;font-size:17px;line-height:1.2}
+#header p{margin:0;color:var(--muted);font-size:12px}
+#panel{top:calc(10px + var(--hh,90px) + 10px);left:10px;width:300px;max-height:calc(100% - var(--hh,90px) - 70px);overflow:auto}
+#panel h2{margin:8px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+#panel h2:first-child{margin-top:0}
+.row{display:flex;align-items:center;gap:8px;margin:3px 0}
+.row .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.sw{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.25)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3)}
+.ramp{height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.2);margin:4px 0 2px}
+.ramp-l{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+select,button{font:inherit;font-size:12.5px}
+select{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff}
+label.chk{display:flex;align-items:center;gap:6px;margin:3px 0;cursor:pointer}
+button#png{margin-top:8px;width:100%;padding:7px;border:0;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+button#png:hover{background:#4a2d7a}
+#toggle{display:none}
+#footer{bottom:6px;left:10px;right:10px;max-width:none;font-size:11px;color:var(--muted);padding:5px 10px}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(244,245,247,.9);text-align:center;padding:20px;font-size:15px}
+#msg.err{color:#a40e26}
+#msg code{background:#fff;padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+.maplibregl-ctrl-bottom-right{bottom:34px}
+@media (max-width:700px){
+  #header{right:10px;max-width:none;padding:8px 10px}
+  #header h1{font-size:14px}
+  #header p{display:none}
+  #toggle{display:block;position:absolute;z-index:6;top:calc(10px + var(--hh,50px) + 8px);left:10px;padding:6px 10px;border:0;border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow)}
+  #panel{top:calc(10px + var(--hh,50px) + 48px);width:auto;right:10px;max-height:55%;display:none}
+  #panel.open{display:block}
+  #footer{font-size:10px}
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="msg">Cargando datos del mapa…</div>
+
+<div id="header" class="card">
+  <h1>Sismo del 10 de agosto: daño y capacidad de respuesta ante réplicas</h1>
+  <p>5.146 edificios de Cali · daño satelital, suelo (microzonificación) y cercanía a hospitales, bomberos y espacios abiertos</p>
+</div>
+<button id="toggle" type="button">Leyenda y capas</button>
+
+<div id="panel" class="card">
+  <h2>Color de los edificios</h2>
+  <select id="colorMode" aria-label="Color de los edificios">
+    <option value="priority">Color: Prioridad ante réplicas</option>
+    <option value="status">Color: Estado estructural</option>
+  </select>
+  <div id="legendBuildings" style="margin-top:6px"></div>
+  <div id="priorityNote" style="font-size:11px;color:var(--muted);margin-top:4px">Alta = dañado + agravante (suelo licuable o de estudio particular, hospital a más de 1 km o sin espacio abierto a 500 m).</div>
+
+  <h2>Capas</h2>
+  <label class="chk"><input type="checkbox" id="l_zones" checked> Microzonas sísmicas</label>
+  <label class="chk"><input type="checkbox" id="l_open" checked> <span class="sw" style="background:#4dac26"></span> Espacios abiertos seguros</label>
+  <label class="chk"><input type="checkbox" id="l_health" checked> <span class="dot" style="background:#c51b7d"></span> Hospitales y salud</label>
+  <label class="chk"><input type="checkbox" id="l_emerg" checked> <span class="dot" style="background:#252525"></span> Bomberos y Defensa Civil</label>
+  <label class="chk"><input type="checkbox" id="l_school"> <span class="dot" style="background:#7b3294"></span> Colegios</label>
+
+  <h2>Aceleración de diseño Sa (g)</h2>
+  <div class="ramp" id="ramp"></div>
+  <div class="ramp-l"><span id="rampMin">menor</span><span id="rampMax">mayor</span></div>
+  <div class="row" style="margin-top:4px"><span class="sw" style="background:#cfcfcf"></span> Sin dato / estudio particular</div>
+
+  <button id="png" type="button">Descargar PNG</button>
+</div>
+
+<div id="footer" class="card">Fuentes: dataset del hackathon (análisis satelital), IDESC – Alcaldía de Cali (microzonificación sísmica, equipamientos, barrios), USGS. Prioridad: criterio del equipo, no cifra oficial.</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
+<script>
+(function(){
+'use strict';
+const FILES = {
+  buildings:'data/gold_el_equipo_map_buildings.geojson',
+  zones:'data/gold_el_equipo_map_seismic_zones.geojson',
+  facilities:'data/gold_el_equipo_map_facilities.geojson'
+};
+const PRIORITY = [
+  {code:'high',   label:'Alta',                color:'#d7191c'},
+  {code:'medium', label:'Media',               color:'#fdae61'},
+  {code:'low',    label:'Baja',                color:'#74add1'},
+  {code:'no_data',label:'Sin dato satelital',  color:'#bababa'}
+];
+const STATUS = [
+  {code:'no_change',label:'No cambio aparente',color:'#2b83ba'},
+  {code:'roof_loss',label:'Pérdida de techo',  color:'#fdae61'},
+  {code:'debris',   label:'Escombros',         color:'#d7191c'},
+  {code:'no_data',  label:'Sin dato',          color:'#9e9e9e'}
+];
+const PURPLE = ['#f2eff7','#cbc9e2','#9e9ac8','#756bb1','#54278f'];
+const GREY = [207,207,207];
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('es-CO');
+const hex = (h, a=255) => { h = (h||'#bdbdbd').replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16),a]; };
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const state = {mode:'priority', vis:{zones:true,open:true,health:true,emerg:true,school:false}};
+let data = {}, map, overlay, buildingDots=[], saMin=0, saMax=1, zoneLabels=[], pts={hosp:[],health:[],emerg:[],school:[]}, openSpaces=[], counts={};
+
+function showMsg(html, err){ const m=$('msg'); m.className=err?'err':''; m.innerHTML=html; m.style.display='flex'; }
+
+async function load(){
+  const out = {};
+  for (const [k,u] of Object.entries(FILES)){
+    const r = await fetch(u);
+    if(!r.ok) throw new Error(u+' ('+r.status+')');
+    out[k] = await r.json();
+  }
+  return out;
+}
+
+function bbox(fc){
+  let a=[Infinity,Infinity,-Infinity,-Infinity];
+  const walk = c => { if(typeof c[0]==='number'){ if(c[0]<a[0])a[0]=c[0]; if(c[0]>a[2])a[2]=c[0]; if(c[1]<a[1])a[1]=c[1]; if(c[1]>a[3])a[3]=c[1]; } else c.forEach(walk); };
+  fc.features.forEach(f=>f.geometry&&walk(f.geometry.coordinates));
+  return a;
+}
+function centroid(geom){
+  let rings = geom.type==='Polygon' ? [geom.coordinates[0]] : geom.coordinates.map(p=>p[0]);
+  let best=rings[0], ba=-1;
+  rings.forEach(r=>{ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; r.forEach(p=>{x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1]);}); const ar=(x1-x0)*(y1-y0); if(ar>ba){ba=ar;best=r;} });
+  let sx=0,sy=0; best.forEach(p=>{sx+=p[0];sy+=p[1];});
+  return [sx/best.length, sy/best.length];
+}
+function lerpColor(a,b,t){ return a.map((v,i)=>Math.round(v+(b[i]-v)*t)); }
+function saColor(f){
+  const p=f.properties;
+  if(p.etc_sm_g==null || p.requires_site_study) return GREY;
+  const t = saMax>saMin ? (p.etc_sm_g-saMin)/(saMax-saMin) : 0.5;
+  const x = Math.min(1,Math.max(0,t))*(PURPLE.length-1), i=Math.min(PURPLE.length-2,Math.floor(x));
+  return lerpColor(hex(PURPLE[i]).slice(0,3), hex(PURPLE[i+1]).slice(0,3), x-i);
+}
+
+function prepare(){
+  // Sa range
+  const vals = data.zones.features.map(f=>f.properties.etc_sm_g).filter(v=>v!=null&&!isNaN(v));
+  if(vals.length){ saMin=Math.min(...vals); saMax=Math.max(...vals); }
+  $('rampMin').textContent = saMin.toFixed(2).replace('.',',');
+  $('rampMax').textContent = saMax.toFixed(2).replace('.',',');
+  $('ramp').style.background = 'linear-gradient(90deg,'+PURPLE.join(',')+')';
+  zoneLabels = data.zones.features.filter(f=>f.geometry).map(f=>({pos:centroid(f.geometry), text:f.properties.seismic_zone_name||''}));
+  // facilities
+  data.facilities.features.forEach(f=>{
+    const p=f.properties, t=p.facility_type_code;
+    if(t==='open_space'){ openSpaces.push(f); return; }
+    let lon=p.lon, lat=p.lat;
+    if(lon==null||lat==null){ if(!f.geometry) return; const c = f.geometry.type==='Point'?f.geometry.coordinates:centroid(f.geometry); lon=c[0]; lat=c[1]; }
+    const d={p, position:[+lon,+lat]};
+    if(t==='health') (p.is_hospital===true||p.is_hospital==='true'||p.is_hospital===1 ? pts.hosp : pts.health).push(d);
+    else if(t==='emergency') pts.emerg.push(d);
+    else if(t==='school') pts.school.push(d);
+  });
+  // centroides de edificios: a escala de ciudad las huellas son de pocos píxeles
+  buildingDots = data.buildings.features.filter(f=>f.geometry).map(f=>({p:f.properties, position:centroid(f.geometry)}));
+  // counts
+  const total=data.buildings.features.length;
+  counts={total, priority:{}, status:{}};
+  data.buildings.features.forEach(f=>{
+    const p=f.properties;
+    const a=p.aftershock_priority_code||'no_data', b=p.structural_status_code||'no_data';
+    counts.priority[a]=(counts.priority[a]||0)+1;
+    counts.status[b]=(counts.status[b]||0)+1;
+  });
+}
+
+function renderLegend(){
+  const cats = state.mode==='priority'?PRIORITY:STATUS, c = state.mode==='priority'?counts.priority:counts.status;
+  $('legendBuildings').innerHTML = cats.map(k=>{
+    const n=c[k.code]||0, pct=counts.total?(100*n/counts.total):0;
+    return '<div class="row"><span class="sw" style="background:'+k.color+'"></span>'+k.label+'<span class="n">'+fmt(n)+' · '+pct.toFixed(1).replace('.',',')+'%</span></div>';
+  }).join('');
+  $('priorityNote').style.display = state.mode==='priority'?'block':'none';
+}
+
+const isHosp = d => d.p.is_hospital===true||d.p.is_hospital==='true'||d.p.is_hospital===1;
+function layers(){
+  const v=state.vis, L=[];
+  L.push(new deck.GeoJsonLayer({
+    id:'zones', data:data.zones, visible:v.zones, pickable:true, stroked:true, filled:true,
+    getFillColor:f=>{const c=saColor(f); return [c[0],c[1],c[2],40];},
+    getLineColor:f=>{const p=f.properties; return (p.etc_sm_g==null||p.requires_site_study)?[90,90,90,220]:[84,39,143,150];},
+    getLineWidth:f=>{const p=f.properties; return (p.etc_sm_g==null||p.requires_site_study)?2.5:1.2;},
+    lineWidthUnits:'pixels'
+  }));
+  L.push(new deck.TextLayer({
+    id:'zone-labels', data:zoneLabels, visible:v.zones, pickable:false,
+    getPosition:d=>d.pos, getText:d=>d.text, getSize:11, getColor:[60,40,100,230],
+    fontFamily:'system-ui, Segoe UI, Arial, sans-serif', fontWeight:600,
+    outlineWidth:3, outlineColor:[255,255,255,230], fontSettings:{sdf:true},
+    background:false, billboard:true, getTextAnchor:'middle', getAlignmentBaseline:'center'
+  }));
+  L.push(new deck.GeoJsonLayer({
+    id:'open', data:openSpaces, visible:v.open, pickable:true, stroked:true, filled:true,
+    getFillColor:[77,172,38,128], getLineColor:[40,110,20,200], getLineWidth:1, lineWidthUnits:'pixels'
+  }));
+  L.push(new deck.ScatterplotLayer({
+    id:'building-dots', data:buildingDots, pickable:false,
+    getPosition:d=>d.position, getFillColor:d=>hex(state.mode==='priority'?d.p.priority_color_hex:d.p.color_hex,235),
+    getRadius:12, radiusUnits:'meters', radiusMinPixels:2.2, radiusMaxPixels:6,
+    updateTriggers:{getFillColor:[state.mode]}
+  }));
+  L.push(new deck.GeoJsonLayer({
+    id:'buildings', data:data.buildings, pickable:true, autoHighlight:true, highlightColor:[255,255,0,200],
+    stroked:true, filled:true, getFillColor:f=>hex(state.mode==='priority'?f.properties.priority_color_hex:f.properties.color_hex,235),
+    getLineColor:[40,40,40,120], getLineWidth:0.5, lineWidthUnits:'pixels', lineWidthMinPixels:0.3,
+    updateTriggers:{getFillColor:[state.mode]}
+  }));
+  L.push(new deck.ScatterplotLayer({
+    id:'health', data:[...pts.health,...pts.hosp], visible:v.health, pickable:true,
+    getPosition:d=>d.position, getLineColor:[255,255,255,255],
+    getFillColor:d=>isHosp(d)?[197,27,125,255]:[197,27,125,90],
+    getRadius:d=>isHosp(d)?8:2,
+    radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:d=>isHosp(d)?1.5:0.5
+  }));
+  L.push(new deck.ScatterplotLayer({
+    id:'emerg', data:pts.emerg, visible:v.emerg, pickable:true,
+    getPosition:d=>d.position, getFillColor:[37,37,37,255], getLineColor:[255,255,255,255],
+    getRadius:8, radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:2
+  }));
+  L.push(new deck.ScatterplotLayer({
+    id:'school', data:pts.school, visible:v.school, pickable:true,
+    getPosition:d=>d.position, getFillColor:[123,50,148,255], getLineColor:[255,255,255,255],
+    getRadius:4, radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:1
+  }));
+  return L;
+}
+function refresh(){ overlay.setProps({layers:layers()}); renderLegend(); }
+
+function tooltip(info){
+  const o=info.object; if(!o) return null;
+  const id=info.layer.id, st={backgroundColor:'#fff',color:'#1d2330',fontSize:'12px',borderRadius:'8px',boxShadow:'0 2px 10px rgba(0,0,0,.25)',padding:'8px 10px',maxWidth:'280px'};
+  let h='';
+  const m = (v,u)=> v==null||v===''||isNaN(+v)?'sin dato':fmt(Math.round(+v))+' '+u;
+  if(id==='buildings'){
+    const p=o.properties, pr=PRIORITY.find(x=>x.code===p.aftershock_priority_code)||PRIORITY[3];
+    h='<b>'+esc(p.neighborhood_name||'Barrio sin nombre')+'</b>'+(p.commune_name?' ('+esc(p.commune_name)+')':'')+
+      '<br>Estado estructural: <b>'+esc(p.structural_status||'Sin dato')+'</b>'+
+      '<br>Prioridad ante réplicas: <b>'+pr.label+'</b>'+
+      '<br>Microzona: '+esc(p.seismic_zone_name||'sin dato')+' · Sa '+(p.etc_sm_g==null?'sin dato':(+p.etc_sm_g).toFixed(2).replace('.',',')+' g')+
+      '<br>Pisos: '+(p.floor_count==null?'sin dato':esc(p.floor_count))+
+      '<br>Hospital más cercano: '+esc(p.nearest_hospital_name||'sin dato')+' ('+m(p.nearest_hospital_m,'m')+')'+
+      '<br>Bomberos/Defensa Civil: '+m(p.nearest_emergency_m,'m')+
+      '<br>Espacios abiertos a 500 m: '+(p.open_space_count_500m==null?'sin dato':esc(p.open_space_count_500m));
+  } else if(id==='zones'){
+    const p=o.properties;
+    h='<b>Microzona '+esc(p.seismic_zone_name||'')+'</b><br>Sa: '+(p.etc_sm_g==null?'sin dato':(+p.etc_sm_g).toFixed(2).replace('.',',')+' g')+
+      (p.requires_site_study?' (requiere estudio particular)':'')+
+      '<br>Edificios dañados: '+(p.damaged_building_pct==null?'sin dato':(+p.damaged_building_pct).toFixed(1).replace('.',',')+'%');
+  } else if(id==='open'){
+    const p=o.properties; h='<b>'+esc(p.facility_name||'Espacio abierto')+'</b><br>'+esc(p.facility_subtype||'Espacio abierto seguro');
+  } else {
+    const p=o.p; h='<b>'+esc(p.facility_name||'Sin nombre')+'</b><br>'+esc(p.facility_subtype||'');
+  }
+  return {html:h, style:st};
+}
+
+/* ---------- PNG export ---------- */
+function wrap(ctx, text, x, y, maxW, lh){
+  const words=text.split(' '); let line='';
+  for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW && line){ ctx.fillText(line,x,y); y+=lh; line=w; } else line=t; }
+  ctx.fillText(line,x,y); return y+lh;
+}
+function rrect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function exportPng(){
+  try{ overlay._deck && overlay._deck.redraw('export'); }catch(e){}
+  const mc = map.getCanvas();
+  const dc = null; // modo interleaved: deck dibuja dentro del canvas de MapLibre
+  const W=mc.width, H=mc.height, k=W/mc.clientWidth;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+  ctx.drawImage(mc,0,0,W,H);
+  if(dc) ctx.drawImage(dc,0,0,W,H);
+  ctx.save(); ctx.scale(k,k);
+  const font='system-ui, "Segoe UI", Arial, sans-serif';
+  // header
+  const hw=Math.min(460, mc.clientWidth-20);
+  ctx.fillStyle='rgba(255,255,255,.94)'; rrect(ctx,10,10,hw,86,10); ctx.fill();
+  ctx.fillStyle='#1d2330'; ctx.font='700 17px '+font; ctx.textBaseline='top';
+  let y=wrap(ctx,'Sismo del 10 de agosto: daño y capacidad de respuesta ante réplicas',22,20,hw-24,21);
+  ctx.fillStyle='#5b6475'; ctx.font='12px '+font;
+  wrap(ctx,'5.146 edificios de Cali · daño satelital, suelo (microzonificación) y cercanía a hospitales, bomberos y espacios abiertos',22,y+2,hw-24,15);
+  // legend
+  const cats=state.mode==='priority'?PRIORITY:STATUS, cn=state.mode==='priority'?counts.priority:counts.status;
+  const lx=10, ly=108, lw=300;
+  const rows=cats.length;
+  const lh=26+rows*20+8+ (state.mode==='priority'?36:0) +22+ (state.vis.open?20:0)+(state.vis.health?20:0)+(state.vis.emerg?20:0)+(state.vis.school?20:0) + (state.vis.zones?52:0)+10;
+  ctx.fillStyle='rgba(255,255,255,.94)'; rrect(ctx,lx,ly,lw,lh,10); ctx.fill();
+  let yy=ly+10, xx=lx+12;
+  ctx.fillStyle='#5b6475'; ctx.font='700 11px '+font; ctx.fillText(state.mode==='priority'?'PRIORIDAD ANTE RÉPLICAS':'ESTADO ESTRUCTURAL',xx,yy); yy+=18;
+  ctx.font='12.5px '+font;
+  cats.forEach(cat=>{
+    const n=cn[cat.code]||0, pct=counts.total?(100*n/counts.total):0;
+    ctx.fillStyle=cat.color; ctx.fillRect(xx,yy,14,14); ctx.strokeStyle='rgba(0,0,0,.3)'; ctx.strokeRect(xx,yy,14,14);
+    ctx.fillStyle='#1d2330'; ctx.textAlign='left'; ctx.fillText(cat.label,xx+22,yy);
+    ctx.fillStyle='#5b6475'; ctx.textAlign='right'; ctx.fillText(fmt(n)+' · '+pct.toFixed(1).replace('.',',')+'%',lx+lw-12,yy); ctx.textAlign='left';
+    yy+=20;
+  });
+  if(state.mode==='priority'){
+    ctx.fillStyle='#5b6475'; ctx.font='10.5px '+font;
+    yy=wrap(ctx,'Alta = dañado + agravante (suelo licuable o de estudio particular, hospital a más de 1 km o sin espacio abierto a 500 m).',xx,yy+2,lw-24,13)+4;
+  }
+  yy+=4; ctx.font='12.5px '+font;
+  const sym=(color,label,kind)=>{
+    if(kind==='sq'){ ctx.fillStyle=color; ctx.fillRect(xx,yy,14,14); }
+    else { ctx.beginPath(); ctx.arc(xx+7,yy+7,6,0,6.283); ctx.fillStyle=color; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle='#fff'; ctx.stroke(); }
+    ctx.fillStyle='#1d2330'; ctx.fillText(label,xx+22,yy); yy+=20;
+  };
+  if(state.vis.open) sym('#4dac26','Espacios abiertos seguros','sq');
+  if(state.vis.health) sym('#c51b7d','Hospitales y salud','dot');
+  if(state.vis.emerg) sym('#252525','Bomberos y Defensa Civil','dot');
+  if(state.vis.school) sym('#7b3294','Colegios','dot');
+  if(state.vis.zones){
+    yy+=2; ctx.fillStyle='#5b6475'; ctx.font='700 11px '+font; ctx.fillText('ACELERACIÓN DE DISEÑO Sa (g)',xx,yy); yy+=16;
+    const g=ctx.createLinearGradient(xx,0,xx+lw-24,0); PURPLE.forEach((p,i)=>g.addColorStop(i/(PURPLE.length-1),p));
+    ctx.fillStyle=g; ctx.fillRect(xx,yy,lw-24,10); yy+=12;
+    ctx.font='11px '+font; ctx.fillText(saMin.toFixed(2).replace('.',','),xx,yy); ctx.textAlign='right'; ctx.fillText(saMax.toFixed(2).replace('.',','),xx+lw-24,yy); ctx.textAlign='left';
+  }
+  // footer
+  ctx.font='11px '+font; ctx.fillStyle='rgba(255,255,255,.94)';
+  const ft='Fuentes: dataset del hackathon (análisis satelital), IDESC – Alcaldía de Cali (microzonificación sísmica, equipamientos, barrios), USGS. Prioridad: criterio del equipo, no cifra oficial.';
+  const fw=mc.clientWidth-20; rrect(ctx,10,mc.clientHeight-34,fw,26,8); ctx.fill();
+  ctx.fillStyle='#5b6475'; ctx.textBaseline='middle'; ctx.fillText(ft,18,mc.clientHeight-21,fw-16);
+  ctx.restore();
+  c.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mapa_el_equipo.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); },'image/png');
+}
+
+/* ---------- init ---------- */
+function setHH(){ document.documentElement.style.setProperty('--hh', $('header').offsetHeight+'px'); }
+window.addEventListener('resize', setHH);
+
+(async function init(){
+  setHH();
+  try{ data = await load(); }
+  catch(e){
+    showMsg('No se encontraron los datos del mapa.<br><br>Ejecuta <code>scripts/download_map_data.sh</code> y recarga.<br><small>'+esc(e.message)+'</small>', true);
+    return;
+  }
+  prepare(); renderLegend();
+  const bb=bbox(data.buildings);
+  map = new maplibregl.Map({
+    container:'map', style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    bounds:[[bb[0],bb[1]],[bb[2],bb[3]]], fitBoundsOptions:{padding:{top:40,bottom:50,left:40,right:40}},
+    preserveDrawingBuffer:true, attributionControl:{compact:true}
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
+  overlay = new deck.MapboxOverlay({interleaved:true, layers:layers(), getTooltip:tooltip});
+  map.addControl(overlay);
+  map.on('load', ()=>{
+    $('msg').style.display='none';
+    // encuadre ajustado a los edificios, dejando libre el panel lateral
+    const panel = $('panel'), wide = window.innerWidth >= 700;
+    map.fitBounds([[bb[0],bb[1]],[bb[2],bb[3]]], {duration:0, padding:{
+      top: 20, bottom: 40, right: 20, left: wide && panel ? panel.offsetWidth + 30 : 20 }});
+  });
+  setTimeout(()=>{ $('msg').style.display='none'; }, 8000);
+  map.on('error', ev=>{ console.warn(ev && ev.error); });
+
+  $('colorMode').addEventListener('change', e=>{ state.mode=e.target.value; refresh(); });
+  [['l_zones','zones'],['l_open','open'],['l_health','health'],['l_emerg','emerg'],['l_school','school']].forEach(([id,k])=>{
+    $(id).addEventListener('change', e=>{ state.vis[k]=e.target.checked; refresh(); });
+  });
+  $('png').addEventListener('click', exportPng);
+  $('toggle').addEventListener('click', ()=>$('panel').classList.toggle('open'));
+})();
+})();
+</script>
+</body>
+</html>
