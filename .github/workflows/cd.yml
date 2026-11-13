@@ -114,6 +114,8 @@ jobs:
 
   deploy-map:
     needs: build-map
+    # always(): sin esto, un pipeline saltado (ancestro) tambien salta el deploy
+    if: always() && needs.build-map.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
