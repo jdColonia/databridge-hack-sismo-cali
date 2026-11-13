@@ -99,8 +99,11 @@ def parse_dictionary(path: Path) -> list[dict]:
 def key_columns(table: dict) -> list[str]:
     key = table["meta"].get("Llave", "")
     names = {c["name"] for c in table["columns"]}
-    # Only the part before any parenthesis lists the key; the rest is a remark.
-    return [k for k in re.findall(r"`([^`]+)`", key.split("(")[0]) if k in names]
+    # The key is listed before any parenthesis, which holds a remark; a key written
+    # whole in parentheses, like (`a`, `b`), is a composite key.
+    head = key.split("(")[0]
+    keys = re.findall(r"`([^`]+)`", head) or re.findall(r"`([^`]+)`", key)
+    return [k for k in keys if k in names]
 
 
 def build(tables: list[dict], rels: list[dict], keys_only: bool, title: str, commit: str) -> str:

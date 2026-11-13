@@ -1,5 +1,5 @@
-// Modelo silver y gold: 17 tablas con columnas completas, llaves y cruces.
-// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 7a82621).
+// Modelo silver y gold: 19 tablas con columnas completas, llaves y cruces.
+// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 47c2d46).
 // No editar a mano: cambia el diccionario o docs/diagrams/relaciones_logicas.json y regenera.
 // Las tablas viven en workspace.<schema>: dev_<usuario> en desarrollo, default en produccion.
 // Ninguna relacion es FK declarada en Unity Catalog: son linaje y cruces logicos.
@@ -232,7 +232,12 @@ Table gold_el_equipo_map_buildings [headercolor: #D4A017] {
   open_space_count_500m int [note: 'Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. Origen: silver_el_equipo_building_facility_distances.']
   aftershock_priority_code string [note: 'Prioridad ante réplicas (criterio del equipo, no cifra oficial): high, medium, low o no_data. high = daño (roof_loss o debris) con algún factor agravante; medium = daño sin agravante, o sin cambio sobre suelo que requiere estudio particular o es licuable; low = sin cambio sin agravante de suelo; no_data = sin datos satelitales. Origen: derivado de structural_status_code y los factores agravantes.']
   has_aggravating_factor boolean [note: 'Verdadero si el edificio tiene algún factor agravante ante réplicas: zona que requiere estudio particular, suelo licuable, hospital a más de 1.000 m o ningún espacio público de encuentro a 500 m. Nunca nulo. Origen: derivado de requires_site_study, is_liquefaction_susceptible, nearest_hospital_m y open_space_count_500m.']
-  priority_color_hex string [note: 'Color para el mapa según aftershock_priority_code: rojo high, naranja medium, verde low, gris no_data. Origen: derivado de aftershock_priority_code.']
+  priority_color_hex string [note: 'Color para el mapa según aftershock_priority_code: rojo high, naranja medium, azul low, gris no_data. Origen: derivado de aftershock_priority_code.']
+  land_use string [note: 'Uso principal del predio según el catastro del IDESC (ej. \'RESIDENCIAL\', \'COMERCIAL\', \'INSTITUCIONAL\', \'INDUSTRIAL\', \'OTROS\'); nulo si el edificio no se pudo unir con el catastro (sin dato). Origen: silver_el_equipo_buildings.']
+  cadastre_floor_count int [note: 'Número de pisos según el catastro; nulo si no hay match con el catastro. Origen: silver_el_equipo_buildings.']
+  cadastre_built_area_m2 double [note: 'Área construida según el catastro, en m²; nulo si no hay match con el catastro. Origen: silver_el_equipo_buildings.']
+  economic_destination_code string [note: 'Código de destinación económica del predio según el catastro; nulo si no hay match. Origen: silver_el_equipo_buildings.']
+  cadastre_match_method string [note: 'Cómo se unió el edificio con el catastro: parcel_id, connection (conexión única), ambiguous_connection (varias unidades, no se adivina) o no_match. Origen: silver_el_equipo_buildings.']
   geom_wkt string [note: 'Geometría del edificio en WKT, EPSG:4326 (lon, lat). Origen: silver_el_equipo_buildings.']
   Note: 'Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, color, comuna y barrio oficiales, área, zona de microzonificación sísmica del IDESC, distancias a equipamientos del IDESC y geometría WKT. Incluye polígonos dudosos con su bandera. | Grano: Un edificio (5.146). | Llave: building_id. | Fuente: silver_el_equipo_buildings, silver_el_equipo_building_seismic_zones y silver_el_equipo_building_facility_distances (uniones por building_id). | Notebook: src/gold/gold_map_and_summaries.py.'
 }
@@ -335,6 +340,41 @@ Table gold_el_equipo_seismic_zone_summary [headercolor: #D4A017] {
   Note: 'Resumen del daño por zona de microzonificación sísmica (agrupado por nombre de zona, que se repite entre polígonos): conteos y área construida por estado estructural, porcentajes de daño y de cobertura sin datos, pisos promedio y medianas de distancia al hospital y al espacio público de encuentro. Una fila por zona con edificios del dataset, más una fila con zona nula si hay edificios que no tocan ninguna zona. | Grano: Una zona de microzonificación (por nombre) con edificios, más una fila con zona nula si hay edificios sin zona. | Llave: seismic_zone_name. | Fuente: gold_el_equipo_map_buildings. | Notebook: src/gold/gold_map_and_summaries.py.'
 }
 
+Table gold_el_equipo_land_use_summary [headercolor: #D4A017] {
+  land_use string [pk, note: 'Uso principal del predio según el catastro (ej. \'RESIDENCIAL\'); nulo agrupa los edificios sin dato de catastro. Origen: silver_el_equipo_buildings.']
+  building_count bigint [note: 'Número de edificios del uso. Origen: conteo sobre silver_el_equipo_buildings.']
+  no_change_building_count bigint [note: 'Edificios con estado no_change (sin cambio aparente). Origen: conteo por structural_status_code.']
+  roof_loss_building_count bigint [note: 'Edificios con estado roof_loss (posible pérdida de techo). Origen: conteo por structural_status_code.']
+  debris_building_count bigint [note: 'Edificios con estado debris (alta probabilidad de escombros). Origen: conteo por structural_status_code.']
+  no_data_building_count bigint [note: 'Edificios sin datos satelitales (no_data). Origen: conteo por structural_status_code.']
+  built_area_m2 double [note: 'Área construida total en m². Origen: suma de built_area_m2 de silver_el_equipo_buildings.']
+  no_change_built_area_m2 double [note: 'Área construida en m² de los edificios no_change. Origen: suma por structural_status_code.']
+  roof_loss_built_area_m2 double [note: 'Área construida en m² de los edificios roof_loss. Origen: suma por structural_status_code.']
+  debris_built_area_m2 double [note: 'Área construida en m² de los edificios debris. Origen: suma por structural_status_code.']
+  no_data_built_area_m2 double [note: 'Área construida en m² de los edificios no_data. Origen: suma por structural_status_code.']
+  damaged_building_pct double [note: 'Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. Origen: derivado de los conteos.']
+  damaged_area_pct double [note: 'Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. Origen: derivado de las áreas.']
+  no_data_building_pct double [note: 'Porcentaje (0-100) de edificios sin datos satelitales sobre el total del uso. Origen: derivado de los conteos.']
+  no_data_area_pct double [note: 'Porcentaje (0-100) del área construida sin datos satelitales sobre el total del uso. Origen: derivado de las áreas.']
+  Note: 'Resumen del daño por uso del suelo del catastro del IDESC: conteos y área construida por estado estructural, y porcentajes de daño y de cobertura sin datos. Una fila por uso, más una fila con uso nulo para los edificios sin dato de catastro. | Grano: Un uso del suelo (land_use), más una fila con uso nulo para los edificios sin dato de catastro. | Llave: land_use. | Fuente: silver_el_equipo_buildings. | Notebook: src/gold/gold_map_and_summaries.py.'
+}
+
+Table gold_el_equipo_event_context [headercolor: #D4A017] {
+  metric_code string [note: 'Código de la cifra (ej. deaths, mainshock_magnitude, aftershock_probability_m5). Con time_window forma la llave. Origen: bronze_el_equipo_manual_official_impact y derivado de bronze_el_equipo_usgs_earthquakes y bronze_el_equipo_usgs_aftershock_forecast.']
+  metric_name string [note: 'Nombre de la cifra en español. Origen: bronze_el_equipo_manual_official_impact o definido en el notebook.']
+  value double [note: 'Valor de la cifra, en la unidad de la columna unit. Origen: bronze_el_equipo_manual_official_impact; magnitud, profundidad, conteo y máximo de bronze_el_equipo_usgs_earthquakes; probabilidad de bronze_el_equipo_usgs_aftershock_forecast (probability × 100, 2 decimales).']
+  unit string [note: 'Unidad del valor (ej. personas, edificaciones, Mw, km, sismos, %). Origen: bronze_el_equipo_manual_official_impact o definido en el notebook.']
+  time_window string [note: 'Ventana de tiempo del pronóstico: 1_day, 1_week, 1_month o 1_year; nulo si la cifra no es un pronóstico. Origen: window_label de bronze_el_equipo_usgs_aftershock_forecast.']
+  source_name string [note: 'Nombre de la fuente de la cifra. Origen: bronze_el_equipo_manual_official_impact o definido en el notebook.']
+  source_url string [note: 'Enlace de la fuente; nulo si la cifra no tiene fuente con enlace. Origen: bronze_el_equipo_manual_official_impact o definido en el notebook.']
+  cutoff_date date [note: 'Fecha de corte de la cifra (fecha del dato, no de la descarga, salvo la secuencia de réplicas, que usa la fecha de consulta). Origen: cutoff_date de bronze_el_equipo_manual_official_impact; event_time, _queried_at o forecast_created_at de las tablas del USGS.']
+  verification_status string [note: 'Estado de verificación: verified o pending_verification. Las respuestas usan solo verified. Origen: verification_status de bronze_el_equipo_manual_official_impact (verificada, por verificar); las cifras del USGS son verified.']
+  indexes {
+    (metric_code, time_window) [pk]
+  }
+  Note: 'Cifras de contexto del evento listas para citar (Alcaldía y USGS), en formato largo: una fila por cifra, con unidad, ventana de tiempo, fuente, enlace, fecha de corte y estado de verificación. Las respuestas usan solo filas verified. | Grano: Una cifra de contexto del evento (formato largo). | Llave: (metric_code, time_window). | Fuente: bronze_el_equipo_manual_official_impact, bronze_el_equipo_usgs_earthquakes y bronze_el_equipo_usgs_aftershock_forecast. | Notebook: src/gold/gold_event_context.py.'
+}
+
 // Relaciones: '-' uno a uno, '>' muchos a uno (logicas, no FK declaradas).
 Ref: silver_el_equipo_neighborhoods.commune_code > silver_el_equipo_communes.commune_code // barrio pertenece a comuna
 Ref: silver_el_equipo_buildings.commune_code > silver_el_equipo_communes.commune_code // comuna oficial por ubicacion
@@ -355,6 +395,7 @@ Ref: gold_el_equipo_map_buildings.seismic_zone_name > gold_el_equipo_seismic_zon
 Ref: gold_el_equipo_map_buildings.seismic_zone_id > gold_el_equipo_map_seismic_zones.seismic_zone_id // capa de zonas del mapa
 Ref: gold_el_equipo_map_seismic_zones.seismic_zone_id - silver_el_equipo_seismic_zones.seismic_zone_id // poligonos que tocan el bbox de los edificios
 Ref: gold_el_equipo_map_facilities.facility_id - silver_el_equipo_facilities.facility_id // equipamientos con is_in_study_area
+Ref: silver_el_equipo_buildings.land_use > gold_el_equipo_land_use_summary.land_use // agregado por uso del suelo del catastro
 
 TableGroup silver [color: #8A8D91] {
   silver_el_equipo_communes
@@ -378,5 +419,7 @@ TableGroup gold [color: #D4A017] {
   gold_el_equipo_commune_summary
   gold_el_equipo_neighborhood_summary
   gold_el_equipo_seismic_zone_summary
+  gold_el_equipo_land_use_summary
+  gold_el_equipo_event_context
   Note: 'Gold: listo para el mapa y las cifras'
 }

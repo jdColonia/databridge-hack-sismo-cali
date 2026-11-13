@@ -28,5 +28,8 @@
   {"from": "gold_el_equipo_map_buildings.seismic_zone_name", "to": "gold_el_equipo_seismic_zone_summary.seismic_zone_name", "type": ">", "note": "agregado por nombre de zona"},
   {"from": "gold_el_equipo_map_buildings.seismic_zone_id", "to": "gold_el_equipo_map_seismic_zones.seismic_zone_id", "type": ">", "note": "capa de zonas del mapa"},
   {"from": "gold_el_equipo_map_seismic_zones.seismic_zone_id", "to": "silver_el_equipo_seismic_zones.seismic_zone_id", "type": "-", "note": "poligonos que tocan el bbox de los edificios"},
-  {"from": "gold_el_equipo_map_facilities.facility_id", "to": "silver_el_equipo_facilities.facility_id", "type": "-", "note": "equipamientos con is_in_study_area"}
+  {"from": "gold_el_equipo_map_facilities.facility_id", "to": "silver_el_equipo_facilities.facility_id", "type": "-", "note": "equipamientos con is_in_study_area"},
+  {"from": "silver_el_equipo_buildings.land_use", "to": "gold_el_equipo_land_use_summary.land_use", "type": ">", "note": "agregado por uso del suelo del catastro"},
+  {"from": "bronze_el_equipo_manual_official_impact.metric_code", "to": "gold_el_equipo_event_context.metric_code", "type": "-", "note": "cifras oficiales de la Alcaldia"},
+  {"from": "bronze_el_equipo_usgs_aftershock_forecast.window_label", "to": "gold_el_equipo_event_context.time_window", "type": ">", "note": "probabilidad de replicas por ventana"}
 ]

@@ -12,7 +12,7 @@ Los dos cruces principales con fuentes externas son la **microzonificación sís
 
 Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equipo` y siguen la convención de [`docs/conventions.md`](docs/conventions.md) (identificadores en inglés, textos en español). El detalle de cada tabla y columna está en [`docs/data_dictionary.md`](docs/data_dictionary.md). El job `el_equipo_medallion` las construye en orden.
 
-[![Arquitectura de datos medallion: 31 tablas bronze, silver y gold con sus llaves y relaciones](docs/diagrams/img/medallion_overview.png)](docs/diagrams/img/medallion_overview.png)
+[![Arquitectura de datos medallion: 33 tablas bronze, silver y gold con sus llaves y relaciones](docs/diagrams/img/medallion_overview.png)](docs/diagrams/img/medallion_overview.png)
 
 *Vista general (llaves y relaciones). Diagramas con todas las columnas: [modelo silver y gold](docs/diagrams/img/silver_gold_model.png) y [fuentes bronze](docs/diagrams/img/bronze_sources.png). Ver [Diagramas de datos](#diagramas-de-datos-chartdb).*
 
@@ -178,8 +178,8 @@ ChartDB es la herramienta oficial para diagramas de datos. Los diagramas se guar
 
 | Diagrama | Qué muestra | Imagen | Fuente DBML |
 | -------- | ----------- | ------ | ----------- |
-| Vista general medallion | Las 31 tablas (14 bronze, 11 silver, 6 gold) con sus llaves y el linaje y los cruces entre capas | [PNG](docs/diagrams/img/medallion_overview.png) | [`medallion_overview.dbml`](docs/diagrams/medallion_overview.dbml) |
-| Modelo silver y gold | Las 17 tablas analíticas con todas sus columnas, tipos, llaves y relaciones (edificio, barrio y comuna oficiales, catastro, microzonas, equipamientos, capas del mapa y resúmenes) | [PNG](docs/diagrams/img/silver_gold_model.png) | [`silver_gold_model.dbml`](docs/diagrams/silver_gold_model.dbml) |
+| Vista general medallion | Las 33 tablas (14 bronze, 11 silver, 8 gold) con sus llaves y el linaje y los cruces entre capas | [PNG](docs/diagrams/img/medallion_overview.png) | [`medallion_overview.dbml`](docs/diagrams/medallion_overview.dbml) |
+| Modelo silver y gold | Las 19 tablas analíticas con todas sus columnas, tipos, llaves y relaciones (edificio, barrio y comuna oficiales, catastro, microzonas, equipamientos, capas del mapa, resúmenes y contexto del evento) | [PNG](docs/diagrams/img/silver_gold_model.png) | [`silver_gold_model.dbml`](docs/diagrams/silver_gold_model.dbml) |
 | Fuentes bronze | Esquema crudo de cada fuente (hackathon, IDESC, USGS y manual) con sus metadatos de ingesta | [PNG](docs/diagrams/img/bronze_sources.png) | [`bronze_sources.dbml`](docs/diagrams/bronze_sources.dbml) |
 
 [![Modelo silver y gold con todas las columnas](docs/diagrams/img/silver_gold_model.png)](docs/diagrams/img/silver_gold_model.png)

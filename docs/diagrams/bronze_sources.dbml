@@ -1,5 +1,5 @@
 // Bronze: esquema crudo de cada fuente (hackathon, IDESC, USGS y manual).
-// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 7a82621).
+// Generado por scripts/diagrams/dictionary_to_dbml.py desde docs/data_dictionary.md (commit 47c2d46).
 // No editar a mano: cambia el diccionario o docs/diagrams/relaciones_logicas.json y regenera.
 // Las tablas viven en workspace.<schema>: dev_<usuario> en desarrollo, default en produccion.
 // Ninguna relacion es FK declarada en Unity Catalog: son linaje y cruces logicos.
