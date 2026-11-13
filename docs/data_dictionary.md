@@ -36,6 +36,8 @@ Los nombres reales de las tablas llevan el esquema y el prefijo del equipo (`{ca
 | Gold | `gold_el_equipo_commune_summary` | Una comuna oficial con edificios |
 | Gold | `gold_el_equipo_neighborhood_summary` | Un barrio oficial con edificios |
 | Gold | `gold_el_equipo_seismic_zone_summary` | Una zona de microzonificación (por nombre) con edificios |
+| Gold | `gold_el_equipo_land_use_summary` | Un uso del suelo del catastro, más una fila sin dato de catastro |
+| Gold | `gold_el_equipo_event_context` | Una cifra de contexto del evento (métrica y ventana de tiempo) |
 
 ## Bronze
 
@@ -671,7 +673,12 @@ Vista plana para el mapa: una fila por edificio (5.146) con estado estructural, 
 | `open_space_count_500m` | int | Número de espacios públicos con alguna parte a 500 m o menos del centroide del edificio. | silver_el_equipo_building_facility_distances |
 | `aftershock_priority_code` | string | Prioridad ante réplicas (criterio del equipo, no cifra oficial): high, medium, low o no_data. high = daño (roof_loss o debris) con algún factor agravante; medium = daño sin agravante, o sin cambio sobre suelo que requiere estudio particular o es licuable; low = sin cambio sin agravante de suelo; no_data = sin datos satelitales. | derivado de structural_status_code y los factores agravantes |
 | `has_aggravating_factor` | boolean | Verdadero si el edificio tiene algún factor agravante ante réplicas: zona que requiere estudio particular, suelo licuable, hospital a más de 1.000 m o ningún espacio público de encuentro a 500 m. Nunca nulo. | derivado de requires_site_study, is_liquefaction_susceptible, nearest_hospital_m y open_space_count_500m |
-| `priority_color_hex` | string | Color para el mapa según aftershock_priority_code: rojo high, naranja medium, verde low, gris no_data. | derivado de aftershock_priority_code |
+| `priority_color_hex` | string | Color para el mapa según aftershock_priority_code: rojo high, naranja medium, azul low, gris no_data. | derivado de aftershock_priority_code |
+| `land_use` | string | Uso principal del predio según el catastro del IDESC (ej. 'RESIDENCIAL', 'COMERCIAL', 'INSTITUCIONAL', 'INDUSTRIAL', 'OTROS'); nulo si el edificio no se pudo unir con el catastro (sin dato). | silver_el_equipo_buildings |
+| `cadastre_floor_count` | int | Número de pisos según el catastro; nulo si no hay match con el catastro. | silver_el_equipo_buildings |
+| `cadastre_built_area_m2` | double | Área construida según el catastro, en m²; nulo si no hay match con el catastro. | silver_el_equipo_buildings |
+| `economic_destination_code` | string | Código de destinación económica del predio según el catastro; nulo si no hay match. | silver_el_equipo_buildings |
+| `cadastre_match_method` | string | Cómo se unió el edificio con el catastro: parcel_id, connection (conexión única), ambiguous_connection (varias unidades, no se adivina) o no_match. | silver_el_equipo_buildings |
 | `geom_wkt` | string | Geometría del edificio en WKT, EPSG:4326 (lon, lat). | silver_el_equipo_buildings |
 
 ### `gold_el_equipo_map_seismic_zones`
@@ -812,11 +819,59 @@ Resumen del daño por zona de microzonificación sísmica (agrupado por nombre d
 | `median_nearest_hospital_m` | double | Mediana en m de la distancia al hospital más cercano de los edificios de la zona. | mediana de nearest_hospital_m de silver_el_equipo_building_facility_distances |
 | `median_nearest_open_space_m` | double | Mediana en m de la distancia al espacio público de encuentro más cercano de los edificios de la zona. | mediana de nearest_open_space_m de silver_el_equipo_building_facility_distances |
 
+### `gold_el_equipo_land_use_summary`
+
+Resumen del daño por uso del suelo del catastro del IDESC: conteos y área construida por estado estructural, y porcentajes de daño y de cobertura sin datos. Una fila por uso, más una fila con uso nulo para los edificios sin dato de catastro.
+
+- **Grano:** Un uso del suelo (`land_use`), más una fila con uso nulo para los edificios sin dato de catastro.
+- **Llave:** `land_use`.
+- **Fuente:** `silver_el_equipo_buildings`.
+- **Notebook:** `src/gold/gold_map_and_summaries.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `land_use` | string | Uso principal del predio según el catastro (ej. 'RESIDENCIAL'); nulo agrupa los edificios sin dato de catastro. | silver_el_equipo_buildings |
+| `building_count` | bigint | Número de edificios del uso. | conteo sobre silver_el_equipo_buildings |
+| `no_change_building_count` | bigint | Edificios con estado no_change (sin cambio aparente). | conteo por structural_status_code |
+| `roof_loss_building_count` | bigint | Edificios con estado roof_loss (posible pérdida de techo). | conteo por structural_status_code |
+| `debris_building_count` | bigint | Edificios con estado debris (alta probabilidad de escombros). | conteo por structural_status_code |
+| `no_data_building_count` | bigint | Edificios sin datos satelitales (no_data). | conteo por structural_status_code |
+| `built_area_m2` | double | Área construida total en m². | suma de built_area_m2 de silver_el_equipo_buildings |
+| `no_change_built_area_m2` | double | Área construida en m² de los edificios no_change. | suma por structural_status_code |
+| `roof_loss_built_area_m2` | double | Área construida en m² de los edificios roof_loss. | suma por structural_status_code |
+| `debris_built_area_m2` | double | Área construida en m² de los edificios debris. | suma por structural_status_code |
+| `no_data_built_area_m2` | double | Área construida en m² de los edificios no_data. | suma por structural_status_code |
+| `damaged_building_pct` | double | Porcentaje (0-100) de edificios con daño (roof_loss + debris) sobre los que tienen dato satelital; nulo si ninguno tiene dato. | derivado de los conteos |
+| `damaged_area_pct` | double | Porcentaje (0-100) del área construida con daño (roof_loss + debris) sobre la que tiene dato satelital; nulo si ninguna tiene dato. | derivado de las áreas |
+| `no_data_building_pct` | double | Porcentaje (0-100) de edificios sin datos satelitales sobre el total del uso. | derivado de los conteos |
+| `no_data_area_pct` | double | Porcentaje (0-100) del área construida sin datos satelitales sobre el total del uso. | derivado de las áreas |
+
+### `gold_el_equipo_event_context`
+
+Cifras de contexto del evento listas para citar (Alcaldía y USGS), en formato largo: una fila por cifra, con unidad, ventana de tiempo, fuente, enlace, fecha de corte y estado de verificación. Las respuestas usan solo filas verified.
+
+- **Grano:** Una cifra de contexto del evento (formato largo).
+- **Llave:** (`metric_code`, `time_window`).
+- **Fuente:** `bronze_el_equipo_manual_official_impact`, `bronze_el_equipo_usgs_earthquakes` y `bronze_el_equipo_usgs_aftershock_forecast`.
+- **Notebook:** `src/gold/gold_event_context.py`.
+
+| Columna | Tipo | Descripción | Origen |
+| --- | --- | --- | --- |
+| `metric_code` | string | Código de la cifra (ej. deaths, mainshock_magnitude, aftershock_probability_m5). Con time_window forma la llave. | bronze_el_equipo_manual_official_impact y derivado de bronze_el_equipo_usgs_earthquakes y bronze_el_equipo_usgs_aftershock_forecast |
+| `metric_name` | string | Nombre de la cifra en español. | bronze_el_equipo_manual_official_impact o definido en el notebook |
+| `value` | double | Valor de la cifra, en la unidad de la columna unit. | bronze_el_equipo_manual_official_impact; magnitud, profundidad, conteo y máximo de bronze_el_equipo_usgs_earthquakes; probabilidad de bronze_el_equipo_usgs_aftershock_forecast (probability × 100, 2 decimales) |
+| `unit` | string | Unidad del valor (ej. personas, edificaciones, Mw, km, sismos, %). | bronze_el_equipo_manual_official_impact o definido en el notebook |
+| `time_window` | string | Ventana de tiempo del pronóstico: 1_day, 1_week, 1_month o 1_year; nulo si la cifra no es un pronóstico. | window_label de bronze_el_equipo_usgs_aftershock_forecast |
+| `source_name` | string | Nombre de la fuente de la cifra. | bronze_el_equipo_manual_official_impact o definido en el notebook |
+| `source_url` | string | Enlace de la fuente; nulo si la cifra no tiene fuente con enlace. | bronze_el_equipo_manual_official_impact o definido en el notebook |
+| `cutoff_date` | date | Fecha de corte de la cifra (fecha del dato, no de la descarga, salvo la secuencia de réplicas, que usa la fecha de consulta). | cutoff_date de bronze_el_equipo_manual_official_impact; event_time, _queried_at o forecast_created_at de las tablas del USGS |
+| `verification_status` | string | Estado de verificación: verified o pending_verification. Las respuestas usan solo verified. | verification_status de bronze_el_equipo_manual_official_impact (verificada, por verificar); las cifras del USGS son verified |
+
 ## Export
 
 `src/export/export_geojson.py` escribe tres archivos en `export/` del volumen, todos en EPSG:4326 (`[lon, lat]`), con `geom_wkt` convertido en geometría y el resto de columnas como propiedades:
 
-- `gold_el_equipo_map_buildings.geojson`: las filas de `gold_el_equipo_map_buildings` (5.146), con zona sísmica, prioridad ante réplicas (`aftershock_priority_code`, `has_aggravating_factor`, `priority_color_hex`) y las distancias a equipamientos redondeadas a metros enteros.
+- `gold_el_equipo_map_buildings.geojson`: las filas de `gold_el_equipo_map_buildings` (5.146), con zona sísmica, uso del suelo del catastro (`land_use`), prioridad ante réplicas (`aftershock_priority_code`, `has_aggravating_factor`, `priority_color_hex`) y las distancias a equipamientos redondeadas a metros enteros.
 - `gold_el_equipo_map_seismic_zones.geojson`: las filas de `gold_el_equipo_map_seismic_zones`, con `etc_*` a 2 decimales y `damaged_building_pct` a 1.
 - `gold_el_equipo_map_facilities.geojson`: las filas de `gold_el_equipo_map_facilities`.
 

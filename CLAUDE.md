@@ -57,7 +57,7 @@ Convención de nombres `<capa>_el_equipo_<contenido>` (ej. `bronze_el_equipo_hac
 | Silver | `silver_el_equipo_neighborhoods` (342 barrios oficiales) y `silver_el_equipo_neighborhood_crosswalk` | Probadas en `dev` |
 | Silver | `silver_el_equipo_seismic_zones` (16 zonas) y `_building_seismic_zones` (zona de cada edificio) | Escritas; pendiente correrlas |
 | Silver | `silver_el_equipo_facilities` y `_building_facility_distances` (distancias a salud, hospital, bomberos/Defensa Civil, policía, colegios y espacio público) | Escritas; pendiente correrlas |
-| Gold | `gold_el_equipo_map_buildings` (con zona sísmica y distancias), `_commune_summary`, `_neighborhood_summary`, `_seismic_zone_summary` (provisionales) | Pendiente de correr en `team`; el modelo estrella está por definir |
+| Gold | `gold_el_equipo_map_buildings` (con zona sísmica, distancias y uso del catastro), `_commune_summary`, `_neighborhood_summary`, `_seismic_zone_summary`, `_land_use_summary` (provisionales) y `gold_el_equipo_event_context` (cifras de contexto del evento: Alcaldía y USGS, una fila por cifra) | Pendiente de correr en `team`; el modelo estrella está por definir |
 
 * **Capa Bronze (`bronze_el_equipo_*`):**
   * Ingesta cruda desde el volumen compartido `/Volumes/workspace/default/el_equipo/Datosprediales.json` (ya subido).

@@ -34,6 +34,8 @@ Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equ
 | Gold   | `gold_el_equipo_commune_summary`                       | Conteos, área construida y `damaged_building_pct`, `damaged_area_pct`, `no_data_area_pct` por comuna oficial                                                                  |
 | Gold   | `gold_el_equipo_neighborhood_summary`                  | Lo mismo por barrio oficial                                                                                                                                                   |
 | Gold   | `gold_el_equipo_seismic_zone_summary`                  | Lo mismo por zona de microzonificación sísmica, más pisos promedio y medianas de distancia al hospital y al espacio público                                                   |
+| Gold   | `gold_el_equipo_land_use_summary` | Lo mismo por uso del suelo del catastro (`land_use`), con una fila para los edificios sin dato de catastro |
+| Gold   | `gold_el_equipo_event_context`                         | Cifras de contexto del evento listas para citar (Alcaldía y USGS), una fila por cifra, con fuente, fecha de corte y estado de verificación; las respuestas usan solo `verified` |
 | Export | `export/gold_el_equipo_map_buildings.geojson`          | GeoJSON EPSG:4326 para Kepler.gl / QGIS                                                                                                                                       |
 
 Los notebooks están en `src/`, una carpeta por capa (formato fuente `.py`), y el job en `resources/el_equipo_medallion.job.yml` (serverless, sin clusters):
@@ -43,7 +45,7 @@ src/
 ├── setup/    setup_volume.py
 ├── bronze/   bronze_hackathon_buildings.py, bronze_idesc_references.py, bronze_idesc_seismic_zones.py, bronze_idesc_facilities.py, bronze_usgs_context.py
 ├── silver/   silver_references.py, silver_buildings.py, silver_neighborhood_crosswalk.py, silver_seismic_zones.py, silver_facilities.py
-├── gold/     gold_map_and_summaries.py      (luego: dim_*.py, fact_*.py, vista del mapa)
+├── gold/     gold_map_and_summaries.py, gold_event_context.py      (luego: dim_*.py, fact_*.py, vista del mapa)
 └── export/   export_geojson.py
 ```
 
@@ -99,7 +101,7 @@ Un *Databricks Asset Bundle* describe en archivos de texto lo que debe existir e
 | Archivo | Qué define |
 | ------- | ---------- |
 | `databricks.yml` | Nombre del bundle, **variables** (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y **targets** (`dev`, `team`) |
-| `resources/el_equipo_medallion.job.yml` | El job: 13 tareas encadenadas, cada una corre un notebook con las variables como parámetros |
+| `resources/el_equipo_medallion.job.yml` | El job: 14 tareas encadenadas, cada una corre un notebook con las variables como parámetros |
 | `src/<capa>/*.py` | Los notebooks. Arman los nombres de tabla con los parámetros (`{catalog}.{schema}.bronze_{team}_hackathon_buildings`), nunca escritos a mano |
 | `scripts/upload_data.sh`, `scripts/download_referencias.py`, `scripts/upload_referencias.sh` | Ayudas para subir el crudo y descargar/subir las referencias oficiales (no son parte del bundle) |
 
@@ -110,7 +112,7 @@ setup_volume ─┬→ bronze_hackathon_buildings ──────────
               ├→ bronze_idesc_references → silver_references ┴→ silver_buildings ─┬→ silver_neighborhood_crosswalk ─┐
               ├→ bronze_idesc_seismic_zones ──────────────────────────────────────┼→ silver_seismic_zones ──────────┼→ gold_map_and_summaries → export_geojson
               ├→ bronze_idesc_facilities ─────────────────────────────────────────┴→ silver_facilities ─────────────┘
-              └→ bronze_usgs_context   (contexto: réplicas, pronóstico y cifras oficiales; sin dependientes por ahora)
+              └→ bronze_usgs_context → gold_event_context   (contexto: réplicas, pronóstico y cifras oficiales)
 ```
 
 **`deploy` vs `run`:**
