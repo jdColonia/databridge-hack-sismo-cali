@@ -12,3 +12,6 @@ map/data/
 
 # Posiciones de tablas de la extensión DBML del editor
 *.dbdiagram
+
+# HTML intermedio del PDF de entrega
+docs/deliverables/*.html

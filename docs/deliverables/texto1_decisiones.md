@@ -1,0 +1,7 @@
+# Texto 1: decisiones en silver y gold
+
+**Silver (11 tablas).** En `buildings` usamos OBJECTID como llave, porque ID_PREDIO es nulo o 0 en 3.206 edificios. El código de barrio catastral combina comuna y barrio, porque BARRIO se repite entre comunas. `floor_count` queda nulo si NPISOS ≤ 0 (1.245 casos). Reparamos geometrías y marcamos 344 polígonos sospechosos (`is_suspect_polygon`). Reproyectamos a EPSG:9377 porque Shape__Area venía en grados; así `built_area_m2` es real. Comuna y barrio oficiales salen por ubicación (sjoin), con 100 % de cobertura; el cruce catastral llega al 89 %. `neighborhood_crosswalk` cubre 441 edificios (8,6 %) recodificados. En `seismic_zones` y `building_seismic_zones`, los ceros de zonas antrópicas, coluvión y cauce significan "requiere estudio particular": pasan a NULL con bandera. `facilities` y `building_facility_distances` calculan metros a salud, hospital, bomberos, policía, colegio y espacio público.
+
+**Gold (8 tablas).** `gold_el_equipo_map_buildings` tiene una fila por edificio para el mapa. Su prioridad ante réplicas es un criterio del equipo: agravante = estudio particular, suelo licuable, hospital a más de 1 km o ningún espacio abierto a 500 m. Alta: dañado con agravante. Media: dañado sin agravante, o sin cambio en suelo malo. Baja: el resto. Resúmenes por comuna, barrio, zona sísmica y uso; `event_context` reúne cifras de Alcaldía y USGS.
+
+<!-- palabras: 196 -->
