@@ -1,0 +1,45 @@
+# Databricks Asset Bundle - DataBridge Hack, Sismo de Cali (El Equipo)
+# El host NO se fija aqui: sale del perfil de la CLI (-p el-equipo), asi cada
+# integrante despliega en su propia cuenta Free Edition.
+bundle:
+  name: databridge_hack_el_equipo
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Catalogo de Unity Catalog (Free Edition usa "workspace")
+    default: workspace
+  schema:
+    description: Esquema donde se escriben las tablas (en dev, uno por integrante)
+    default: default
+  raw_schema:
+    description: Esquema del volumen compartido con el crudo (Datosprediales.json se sube una sola vez)
+    default: default
+  team:
+    description: Prefijo de tablas del equipo
+    default: el_equipo
+  volume:
+    description: Volumen para datos crudos y exportes
+    default: el_equipo
+
+targets:
+  # Todos en el mismo workspace. Cada integrante prueba en su propio esquema
+  # (dev_<usuario>) para no pisar las tablas de los demas.
+  dev:
+    mode: development
+    default: true
+    variables:
+      schema: dev_${workspace.current_user.short_name}
+
+  # Version final: escribe en workspace.default, donde quedan las 3 capas.
+  # Solo una persona la despliega y la corre, desde main.
+  team:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/team
+    # Para dar acceso a otros integrantes agregar aqui (no tenemos los correos):
+    # permissions:
+    #   - user_name: correo@ejemplo.com
+    #     level: CAN_MANAGE

@@ -22,13 +22,57 @@ Todas las tablas viven en `workspace.default` (configurable) con prefijo `el_equ
 | Gold   | `gold_el_equipo_resumen_barrio`                    | Lo mismo por `comuna_barrio_id`                                                                                                                                               |
 | Export | `export/gold_el_equipo_mapa_edificios.geojson`     | GeoJSON EPSG:4326 para Kepler.gl / QGIS                                                                                                                                       |
 
-Los notebooks están en `src/` (formato fuente `.py`) y el job en `resources/el_equipo_medallion.job.yml` (serverless, sin clusters).
+Los notebooks están en `src/`, una carpeta por capa (formato fuente `.py`), y el job en `resources/el_equipo_medallion.job.yml` (serverless, sin clusters):
+
+```
+src/
+├── setup/    setup_volumen.py
+├── bronze/   bronze_predios.py              (+ un notebook por fuente externa)
+├── silver/   silver_predios.py, silver_datos_adicionales.py
+├── gold/     gold_mapa_y_resumen.py         (luego: dim_*.py, fact_*.py, vista del mapa)
+└── export/   export_geojson.py
+```
+
+Los nombres no llevan números: el orden lo define el job con `depends_on`. Para agregar un notebook, créalo en la carpeta de su capa y agrega su tarea en el job.
 
 ## Requisitos
 
-- Databricks CLI ≥ 0.218 (probado con 1.26.0).
-- Una cuenta de Databricks Free Edition (solo serverless; catálogo `workspace`, esquema `default`).
-- Los datos `Datosprediales.json` en `data/raw/` (no se suben a git).
+- Databricks CLI ≥ 0.218 (probado con 1.26.0). Instalación: `winget install Databricks.DatabricksCLI` (Windows) o `brew tap databricks/tap && brew install databricks` (macOS). Comprobar con `databricks --version`.
+- Ser usuario del workspace del equipo (el dueño te invita).
+- Git y acceso a este repositorio.
+- `Datosprediales.json` **no** hace falta para trabajar: ya está subido al volumen compartido. Solo quien vuelva a subirlo lo necesita en `data/raw/` (esa carpeta no se sube a git).
+
+## Estado actual
+
+| Paso | Estado |
+| ---- | ------ |
+| Volumen `workspace.default.el_equipo` con `Datosprediales.json` | Listo |
+| `workspace.default.bronze_el_equipo_predios` (5.146 filas × 21 columnas) | Listo |
+| Silver, gold y export | Pendiente |
+
+## Cómo funciona el bundle
+
+Un *Databricks Asset Bundle* describe en archivos de texto lo que debe existir en Databricks (notebooks, jobs, parámetros). La CLI lee esos archivos y lo crea o actualiza en el workspace: nada se configura a mano con clics, todo queda en Git.
+
+| Archivo | Qué define |
+| ------- | ---------- |
+| `databricks.yml` | Nombre del bundle, **variables** (`catalog`, `schema`, `raw_schema`, `team`, `volume`) y **targets** (`dev`, `team`) |
+| `resources/el_equipo_medallion.job.yml` | El job: 6 tareas en cadena, cada una corre un notebook con las variables como parámetros |
+| `src/<capa>/*.py` | Los notebooks. Arman los nombres de tabla con los parámetros (`{catalog}.{schema}.bronze_{team}_predios`), nunca escritos a mano |
+| `scripts/upload_data.sh` | Ayuda para subir el crudo al volumen (no es parte del bundle) |
+
+El job corre en **serverless** (no declara clusters) y ejecuta en orden:
+
+```
+setup_volumen → bronze_predios → silver_predios → silver_datos_adicionales → gold_mapa_y_resumen → export_geojson
+```
+
+**`deploy` vs `run`:**
+
+- `databricks bundle deploy` sube el código a `/Workspace/Users/<tu_usuario>/.bundle/databridge_hack_el_equipo/<target>/` y crea o actualiza el job. **No toca datos.** Respeta `.gitignore`, así que `data/` nunca se sube. Guarda un registro de lo desplegado, por eso la siguiente vez actualiza el job en lugar de duplicarlo.
+- `databricks bundle run` ejecuta el job y es lo que crea las tablas. Para correr solo algunas tareas: `--only silver_predios,gold_mapa_y_resumen`.
+
+> **Importante:** si editas un notebook directamente en la interfaz de Databricks, ese cambio no está en Git y el siguiente `deploy` lo sobrescribe. Edita en el repositorio y despliega; si pruebas algo en la interfaz, cópialo después al `.py`.
 
 ## Flujo colaborativo con bundles
 
@@ -49,11 +93,16 @@ El crudo `Datosprediales.json` vive en el volumen compartido `workspace.default.
    ```
 
 **Cada integrante:**
-1. Autenticarse contra el workspace compartido:
+1. Clonar el repositorio y entrar a la carpeta:
+   ```bash
+   git clone https://github.com/jdColonia/databridge-hack-sismo-cali.git
+   cd databridge-hack-sismo-cali
+   ```
+2. Autenticarse contra el workspace compartido (abre el navegador):
    ```bash
    databricks auth login --host https://dbc-240be77b-cf4c.cloud.databricks.com --profile el-equipo
    ```
-2. Validar, desplegar y correr en su esquema de pruebas:
+3. Validar, desplegar y correr en su esquema de pruebas (`workspace.dev_<tu_usuario>`; el job se llama `[dev tu_usuario] el_equipo_medallion`):
    ```bash
    databricks bundle validate -p el-equipo
    databricks bundle deploy -t dev -p el-equipo

@@ -1,0 +1,50 @@
+# Job serverless: sin clusters ni job_clusters (las notebook tasks usan serverless por defecto)
+resources:
+  jobs:
+    el_equipo_medallion:
+      name: el_equipo_medallion
+      tasks:
+        - task_key: setup_volumen
+          notebook_task:
+            notebook_path: ../src/setup/setup_volumen.py
+            base_parameters: &params
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              raw_schema: ${var.raw_schema}
+              team: ${var.team}
+              volume: ${var.volume}
+
+        - task_key: bronze_predios
+          depends_on:
+            - task_key: setup_volumen
+          notebook_task:
+            notebook_path: ../src/bronze/bronze_predios.py
+            base_parameters: *params
+
+        - task_key: silver_predios
+          depends_on:
+            - task_key: bronze_predios
+          notebook_task:
+            notebook_path: ../src/silver/silver_predios.py
+            base_parameters: *params
+
+        - task_key: silver_datos_adicionales
+          depends_on:
+            - task_key: silver_predios
+          notebook_task:
+            notebook_path: ../src/silver/silver_datos_adicionales.py
+            base_parameters: *params
+
+        - task_key: gold_mapa_y_resumen
+          depends_on:
+            - task_key: silver_datos_adicionales
+          notebook_task:
+            notebook_path: ../src/gold/gold_mapa_y_resumen.py
+            base_parameters: *params
+
+        - task_key: export_geojson
+          depends_on:
+            - task_key: gold_mapa_y_resumen
+          notebook_task:
+            notebook_path: ../src/export/export_geojson.py
+            base_parameters: *params

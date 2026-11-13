@@ -1,0 +1,7 @@
+data/
+.databricks/
+__pycache__/
+.venv/
+*.geojson
+.DS_Store
+*.xlsx
