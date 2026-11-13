@@ -54,7 +54,14 @@ jobs:
       - name: Versiones exactas de librerias del mapa
         run: |
           grep -Eq 'maplibre-gl@[0-9]+\.[0-9]+\.[0-9]+' map/index.html
-          grep -Eq 'deck\.gl@[0-9]+\.[0-9]+\.[0-9]+' map/index.html
+          # deck.gl es opcional: si el mapa lo carga, debe ser con versión exacta
+          if grep -q 'deck\.gl' map/index.html; then
+            grep -Eq 'deck\.gl@[0-9]+\.[0-9]+\.[0-9]+' map/index.html
+          fi
+          # ninguna librería externa sin versión exacta (ej. maplibre-gl@4 o @latest)
+          if grep -Eo '(unpkg\.com|cdn\.jsdelivr\.net/npm)/[^"'"'"' ]+' map/index.html | grep -Ev '@[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::Hay librerías del mapa sin versión exacta"; exit 1
+          fi
 
       - name: Validar diagramas DBML
         run: |

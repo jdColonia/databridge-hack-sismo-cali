@@ -3,90 +3,234 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sismo de Cali: daño y capacidad de respuesta ante réplicas</title>
+<title>Sismo de Cali: daño y respuesta ante réplicas</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
 :root{
-  --bg:#f4f5f7; --card:rgba(255,255,255,.94); --ink:#1d2330; --muted:#5b6475; --line:#d5d9e0;
-  --accent:#5e3c99; --radius:10px; --shadow:0 2px 10px rgba(20,30,50,.18);
+  --bg:#f4f5f7; --card:#ffffff; --ink:#1d2330; --muted:#5b6475; --line:#dde1e7; --soft:#f1f3f6;
+  --accent:#2f4b8f; --accent-ink:#ffffff; --radius:10px; --shadow:0 2px 12px rgba(20,30,50,.16);
   --font:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --lw:300px; --rw:360px; --hh:56px;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);background:var(--bg)}
-#map{position:absolute;inset:0}
-.card{position:absolute;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 12px;font-size:12.5px;line-height:1.35;z-index:5}
-#header{top:10px;left:10px;max-width:440px}
-#header h1{margin:0 0 4px;font-size:17px;line-height:1.2}
-#header p{margin:0;color:var(--muted);font-size:12px}
-#panel{top:calc(10px + var(--hh,90px) + 10px);left:10px;width:300px;max-height:calc(100% - var(--hh,90px) - 70px);overflow:auto}
-#panel h2{margin:8px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-#panel h2:first-child{margin-top:0}
-.row{display:flex;align-items:center;gap:8px;margin:3px 0}
-.row .n{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
-.sw{width:14px;height:14px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.25)}
-.dot{width:12px;height:12px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.3)}
-.ramp{height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.2);margin:4px 0 2px}
-.ramp-l{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
-select,button{font:inherit;font-size:12.5px}
-select{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff}
-label.chk{display:flex;align-items:center;gap:6px;margin:3px 0;cursor:pointer}
-button#png{margin-top:8px;width:100%;padding:7px;border:0;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
-button#png:hover{background:#4a2d7a}
-#toggle{display:none}
-#footer{bottom:6px;left:10px;right:10px;max-width:none;font-size:11px;color:var(--muted);padding:5px 10px}
-#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(244,245,247,.9);text-align:center;padding:20px;font-size:15px}
+html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);background:var(--bg);font-size:13px}
+#map{position:absolute;top:var(--hh);bottom:0;left:var(--lw);right:var(--rw)}
+header{position:absolute;top:0;left:0;right:0;height:var(--hh);display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--card);border-bottom:1px solid var(--line);z-index:10}
+header h1{font-size:15px;margin:0;line-height:1.2;white-space:nowrap}
+header h1 small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+#searchWrap{flex:1;max-width:420px;position:relative;margin-left:auto}
+#search{width:100%;padding:8px 10px 8px 30px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--soft)}
+#searchWrap::before{content:"⌕";position:absolute;left:10px;top:50%;transform:translateY(-52%);color:var(--muted);font-size:15px}
+#sugg{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:4px;box-shadow:var(--shadow);max-height:300px;overflow:auto;display:none;z-index:30}
+#sugg div{padding:7px 10px;cursor:pointer;display:flex;gap:8px}
+#sugg div:hover,#sugg div.on{background:var(--soft)}
+#sugg .k{color:var(--muted);font-size:11px;min-width:64px}
+.btn{font:inherit;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{background:#243b72}
+.tabbtn{display:none}
+aside{position:absolute;top:var(--hh);bottom:0;background:var(--card);overflow:auto;z-index:8;padding:12px 14px 20px}
+#left{left:0;width:var(--lw);border-right:1px solid var(--line)}
+#right{right:0;width:var(--rw);border-left:1px solid var(--line)}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 6px;display:flex;align-items:center;gap:6px}
+h2:first-child{margin-top:2px}
+h2 .act{margin-left:auto;text-transform:none;letter-spacing:0;font-size:11px;color:var(--accent);cursor:pointer;background:none;border:0;padding:0;font:inherit;font-size:11px}
+label.f{display:block;font-size:11.5px;color:var(--muted);margin:8px 0 3px}
+select,input[type=number]{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:7px;background:#fff;font:inherit}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;cursor:pointer;user-select:none;font-size:12px;background:#fff}
+.chip input{display:none}
+.chip.on{border-color:var(--ink);background:var(--soft)}
+.chip:not(.on){opacity:.5}
+.sw{width:12px;height:12px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.2)}
+.hicon{width:14px;height:14px;flex:none;display:inline-block;vertical-align:middle;border:1.5px solid #3a1020;border-radius:3px;background:
+  linear-gradient(#c40d2e,#c40d2e) center/3px 8px no-repeat, linear-gradient(#c40d2e,#c40d2e) center/8px 3px no-repeat, #fff}
+.dot{width:11px;height:11px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+label.chk{display:flex;align-items:center;gap:7px;margin:5px 0;cursor:pointer}
+.rng{display:flex;align-items:center;gap:8px}
+.rng input[type=range]{flex:1}
+.rng output{min-width:64px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px}
+.note{font-size:11px;color:var(--muted);line-height:1.4;margin-top:6px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.kpi{background:var(--soft);border-radius:8px;padding:8px 9px}
+.kpi b{display:block;font-size:19px;font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi span{font-size:11px;color:var(--muted);line-height:1.25;display:block}
+.kpi.alert b{color:#b2182b}
+.stack{display:flex;height:16px;border-radius:5px;overflow:hidden;margin:4px 0 6px;background:var(--soft)}
+.stack div{height:100%}
+.leg-row{display:flex;align-items:center;gap:7px;margin:3px 0;font-size:12px}
+.leg-row .n{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:right;font-weight:600;color:var(--muted);font-size:11px;padding:5px 4px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+th:first-child,td:first-child{text-align:left}
+th.sorted{color:var(--ink)}
+td{padding:5px 4px;border-bottom:1px solid var(--soft);text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--soft)}
+td .bar{display:inline-block;height:6px;border-radius:3px;background:#c0392b;vertical-align:middle;margin-right:4px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-bottom:6px}
+.seg button{flex:1;border:0;background:#fff;padding:5px;font:inherit;font-size:12px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--ink);color:#fff}
+#detail{display:none;border:1px solid var(--line);border-radius:var(--radius);padding:10px 11px;margin-bottom:6px;background:#fff}
+#detail h3{margin:0 0 2px;font-size:14px}
+#detail .sub{color:var(--muted);font-size:11.5px;margin-bottom:8px}
+#detail dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0;font-size:12px}
+#detail dt{color:var(--muted)}
+#detail dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;color:#fff;font-size:11.5px;font-weight:600}
+.why{margin:8px 0 0;padding:0;list-style:none;font-size:12px}
+.why li{padding:3px 0 3px 18px;position:relative}
+.why li::before{content:"";position:absolute;left:3px;top:8px;width:8px;height:8px;border-radius:50%;background:#b2182b}
+.why li.ok::before{background:#9aa5b5}
+#filterSummary{font-size:12px;color:var(--muted);margin:2px 0 8px;line-height:1.4}
+#filterSummary b{color:var(--ink);font-weight:600}
+#legend{position:absolute;left:calc(var(--lw) + 10px);bottom:28px;background:rgba(255,255,255,.95);border-radius:var(--radius);box-shadow:var(--shadow);padding:9px 11px;z-index:6;min-width:200px;max-width:260px}
+#legend .t{font-weight:600;font-size:12px;margin-bottom:5px}
+.ramp{height:10px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
+.ramp-l{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:2px}
+.zlabel{font:600 11px var(--font);color:#23306b;background:rgba(255,255,255,.82);padding:1px 6px;border-radius:5px;border:1px solid rgba(35,48,107,.25);pointer-events:none;white-space:nowrap}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:rgba(244,245,247,.94);text-align:center;padding:20px;font-size:15px}
 #msg.err{color:#a40e26}
 #msg code{background:#fff;padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
-.maplibregl-ctrl-bottom-right{bottom:34px}
-@media (max-width:700px){
-  #header{right:10px;max-width:none;padding:8px 10px}
-  #header h1{font-size:14px}
-  #header p{display:none}
-  #toggle{display:block;position:absolute;z-index:6;top:calc(10px + var(--hh,50px) + 8px);left:10px;padding:6px 10px;border:0;border-radius:var(--radius);background:var(--card);box-shadow:var(--shadow)}
-  #panel{top:calc(10px + var(--hh,50px) + 48px);width:auto;right:10px;max-height:55%;display:none}
-  #panel.open{display:block}
-  #footer{font-size:10px}
+.maplibregl-popup-content{font:12px var(--font);padding:8px 10px;border-radius:8px;box-shadow:var(--shadow)}
+footer{position:absolute;left:calc(var(--lw) + 10px);bottom:4px;font-size:10.5px;color:var(--muted);background:rgba(255,255,255,.85);padding:2px 8px;border-radius:6px;z-index:5;white-space:nowrap}
+#legend{bottom:30px}
+.maplibregl-ctrl-bottom-right{bottom:22px}
+@media (max-width:1100px){
+  :root{--lw:0px;--rw:0px}
+  .tabbtn{display:inline-block}
+  aside{display:none;width:min(92vw,380px)!important;box-shadow:var(--shadow)}
+  aside.open{display:block}
+  #legend{left:10px}
+  header h1 small{display:none}
+}
+@media (max-width:640px){
+  :root{--hh:96px}
+  header{flex-wrap:wrap;height:auto;min-height:var(--hh);padding:8px 10px;gap:8px}
+  header h1{font-size:13.5px;white-space:normal;flex:1 1 60%}
+  #searchWrap{order:3;flex:1 1 100%;max-width:none}
+  #hdrBtns .hide-sm{display:none}
+  #legend{max-width:200px;font-size:11px}
+  footer{display:none}
 }
 </style>
 </head>
 <body>
-<div id="map"></div>
 <div id="msg">Cargando datos del mapa…</div>
 
-<div id="header" class="card">
-  <h1>Sismo del 10 de agosto: daño y capacidad de respuesta ante réplicas</h1>
-  <p>5.146 edificios de Cali · daño satelital, suelo (microzonificación) y cercanía a hospitales, bomberos y espacios abiertos</p>
-</div>
-<button id="toggle" type="button">Leyenda y capas</button>
+<header>
+  <h1>Sismo del 10 de agosto en Cali<small>Daño satelital, suelo y capacidad de respuesta ante réplicas · 5.146 edificios</small></h1>
+  <div id="searchWrap">
+    <input id="search" type="search" autocomplete="off" placeholder="Buscar comuna, barrio, microzona, hospital o # de edificio" aria-label="Buscar">
+    <div id="sugg" role="listbox"></div>
+  </div>
+  <div id="hdrBtns" style="display:flex;gap:6px">
+    <button class="btn tabbtn" id="tabLeft" type="button">Filtros</button>
+    <button class="btn tabbtn" id="tabRight" type="button">Análisis</button>
+    <button class="btn hide-sm" id="btnCsv" type="button" title="Descarga los edificios filtrados">CSV</button>
+    <button class="btn hide-sm" id="btnPng" type="button">PNG</button>
+    <button class="btn primary" id="btnReset" type="button">Limpiar</button>
+  </div>
+</header>
 
-<div id="panel" class="card">
-  <h2>Color de los edificios</h2>
-  <select id="colorMode" aria-label="Color de los edificios">
-    <option value="priority">Color: Prioridad ante réplicas</option>
-    <option value="status">Color: Estado estructural</option>
+<aside id="left">
+  <h2>Colorear edificios por</h2>
+  <select id="colorMode" aria-label="Colorear edificios por">
+    <option value="priority">Prioridad ante réplicas</option>
+    <option value="status">Estado estructural (satélite)</option>
+    <option value="sa">Demanda sísmica del suelo (Sa)</option>
+    <option value="hosp">Distancia al hospital</option>
+    <option value="emerg">Distancia a bomberos / Defensa Civil</option>
+    <option value="open">Distancia a espacio abierto</option>
+    <option value="floors">Número de pisos</option>
   </select>
-  <div id="legendBuildings" style="margin-top:6px"></div>
-  <div id="priorityNote" style="font-size:11px;color:var(--muted);margin-top:4px">Alta = dañado + agravante (suelo licuable o de estudio particular, hospital a más de 1 km o sin espacio abierto a 500 m).</div>
+
+  <h2>Territorio <button class="act" data-clear="territory" type="button">quitar</button></h2>
+  <label class="f" for="fCommune">Comuna</label>
+  <select id="fCommune"></select>
+  <label class="f" for="fHood">Barrio</label>
+  <select id="fHood"></select>
+  <label class="f" for="fZone">Microzona sísmica</label>
+  <select id="fZone"></select>
+
+  <h2>Daño satelital <button class="act" data-clear="status" type="button">todos</button></h2>
+  <div class="chips" id="fStatus"></div>
+
+  <h2>Prioridad ante réplicas <button class="act" data-clear="priority" type="button">todas</button></h2>
+  <div class="chips" id="fPriority"></div>
+  <div class="note">Alta = daño satelital + algún agravante (suelo licuable o de estudio particular, hospital a más de 1 km o sin espacio de encuentro a 500 m). Criterio del equipo, no cifra oficial.</div>
+
+  <h2>Edificio</h2>
+  <label class="f" for="fFloors">Pisos (catastro del dataset)</label>
+  <select id="fFloors">
+    <option value="">Cualquiera</option>
+    <option value="1-2">1 a 2 pisos</option>
+    <option value="3-5">3 a 5 pisos</option>
+    <option value="6-99">6 o más pisos</option>
+    <option value="null">Sin dato de pisos</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="fAgg"> Solo con factor agravante</label>
+
+  <h2>Suelo</h2>
+  <label class="chk"><input type="checkbox" id="fLiq"> Suelo licuable</label>
+  <label class="chk"><input type="checkbox" id="fSite"> Requiere estudio particular de sitio</label>
+  <label class="f" for="fSa">Sa mínima del suelo</label>
+  <div class="rng"><input type="range" id="fSa" min="0" max="1" step="0.05" value="0"><output id="oSa">cualquiera</output></div>
+
+  <h2>Acceso a la ayuda</h2>
+  <label class="f" for="fHosp">Hospital a más de</label>
+  <div class="rng"><input type="range" id="fHosp" min="0" max="2000" step="100" value="0"><output id="oHosp">cualquiera</output></div>
+  <label class="f" for="fEmerg">Bomberos / Defensa Civil a más de</label>
+  <div class="rng"><input type="range" id="fEmerg" min="0" max="3000" step="250" value="0"><output id="oEmerg">cualquiera</output></div>
+  <label class="f" for="fOpen">Espacio abierto a más de</label>
+  <div class="rng"><input type="range" id="fOpen" min="0" max="500" step="50" value="0"><output id="oOpen">cualquiera</output></div>
 
   <h2>Capas</h2>
-  <label class="chk"><input type="checkbox" id="l_zones" checked> Microzonas sísmicas</label>
-  <label class="chk"><input type="checkbox" id="l_open" checked> <span class="sw" style="background:#4dac26"></span> Espacios abiertos seguros</label>
-  <label class="chk"><input type="checkbox" id="l_health" checked> <span class="dot" style="background:#c51b7d"></span> Hospitales y salud</label>
-  <label class="chk"><input type="checkbox" id="l_emerg" checked> <span class="dot" style="background:#252525"></span> Bomberos y Defensa Civil</label>
-  <label class="chk"><input type="checkbox" id="l_school"> <span class="dot" style="background:#7b3294"></span> Colegios</label>
+  <label class="chk"><input type="checkbox" id="lZones" checked> <span class="sw" style="background:#93a6e0"></span> Microzonas sísmicas</label>
+  <label class="chk"><input type="checkbox" id="lOpen" checked> <span class="sw" style="background:#3a9d4a"></span> Espacios abiertos (encuentro)</label>
+  <label class="chk"><input type="checkbox" id="lHosp" checked> <span class="hicon"></span> Hospitales</label>
+  <label class="chk"><input type="checkbox" id="lHealth"> <span class="dot" style="background:#e78ac3"></span> Otros centros de salud</label>
+  <label class="chk"><input type="checkbox" id="lEmerg" checked> <span class="dot" style="background:#1d2330"></span> Bomberos y Defensa Civil</label>
+  <label class="chk"><input type="checkbox" id="lPolice"> <span class="dot" style="background:#3f6fb5"></span> Policía</label>
+  <label class="chk"><input type="checkbox" id="lSchool"> <span class="dot" style="background:#8c5bd0"></span> Colegios</label>
+</aside>
 
-  <h2>Aceleración de diseño Sa (g)</h2>
-  <div class="ramp" id="ramp"></div>
-  <div class="ramp-l"><span id="rampMin">menor</span><span id="rampMax">mayor</span></div>
-  <div class="row" style="margin-top:4px"><span class="sw" style="background:#cfcfcf"></span> Sin dato / estudio particular</div>
+<aside id="right">
+  <div id="detail"></div>
+  <h2>Selección actual <button class="act" id="btnFit" type="button">encuadrar</button></h2>
+  <div id="filterSummary"></div>
+  <div class="kpis" id="kpis"></div>
 
-  <button id="png" type="button">Descargar PNG</button>
-</div>
+  <h2>Estado estructural</h2>
+  <div class="stack" id="stack"></div>
+  <div id="stackLeg"></div>
 
-<div id="footer" class="card">Fuentes: dataset del hackathon (análisis satelital), IDESC – Alcaldía de Cali (microzonificación sísmica, equipamientos, barrios), USGS. Prioridad: criterio del equipo, no cifra oficial.</div>
+  <h2>Comparar por</h2>
+  <div class="seg" id="groupSeg">
+    <button data-g="hood" class="on" type="button">Barrio</button>
+    <button data-g="commune" type="button">Comuna</button>
+    <button data-g="zone" type="button">Microzona</button>
+  </div>
+  <table id="groupTable"><thead></thead><tbody></tbody></table>
+  <div class="note">Clic en una fila para filtrar y acercar. % dañado excluye los edificios sin dato satelital. Clic en un encabezado para ordenar.</div>
+
+  <h2>Cómo leer</h2>
+  <div class="note">Daño inferido por satélite, no inspección en sitio: "sin cambio aparente" no descarta daño interno. Sa = aceleración espectral de diseño de la microzona (IDESC). Distancias en línea recta (EPSG:9377). La prioridad ante réplicas es un criterio del equipo, no una cifra oficial.</div>
+  <h2>Fuentes</h2>
+  <div class="note">
+    · Dataset del hackathon: daño inferido por satélite (5.146 edificios).<br>
+    · IDESC – Alcaldía de Cali: microzonificación sísmica, equipamientos de salud, seguridad y educación, espacio público y barrios.<br>
+    · USGS: evento M7,4 y réplicas.<br>
+    · Cifras calculadas en las tablas gold de El Equipo (Databricks).
+  </div>
+</aside>
+
+<div id="map"></div>
+<div id="legend"></div>
+<footer>Fuentes: satélite (hackathon) · IDESC – Alcaldía de Cali · USGS</footer>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/deck.gl@9.0.38/dist.min.js"></script>
 <script>
 (function(){
 'use strict';
@@ -95,294 +239,556 @@ const FILES = {
   zones:'data/gold_el_equipo_map_seismic_zones.geojson',
   facilities:'data/gold_el_equipo_map_facilities.geojson'
 };
-const PRIORITY = [
-  {code:'high',   label:'Alta',                color:'#d7191c'},
-  {code:'medium', label:'Media',               color:'#fdae61'},
-  {code:'low',    label:'Baja',                color:'#74add1'},
-  {code:'no_data',label:'Sin dato satelital',  color:'#bababa'}
-];
+/* Paletas separadas para que no se confundan entre sí ni con las capas:
+   verde = espacios abiertos · azul tenue = microzonas · rojo/ámbar = daño satelital · morado = prioridad ante réplicas
+   hospitales = ícono de cruz (forma distinta, no solo color) */
 const STATUS = [
-  {code:'no_change',label:'No cambio aparente',color:'#2b83ba'},
-  {code:'roof_loss',label:'Pérdida de techo',  color:'#fdae61'},
-  {code:'debris',   label:'Escombros',         color:'#d7191c'},
-  {code:'no_data',  label:'Sin dato',          color:'#9e9e9e'}
+  {code:'debris',   label:'Alta probabilidad de escombros', short:'Escombros', color:'#d7301f'},
+  {code:'roof_loss',label:'Posible desaparición de techo', short:'Techo',     color:'#fdb863'},
+  {code:'no_change',label:'Sin cambio aparente',           short:'Sin cambio',color:'#8593a8'},
+  {code:'no_data',  label:'Sin datos satelitales',         short:'Sin dato',  color:'#d3d3d3'}
 ];
-const PURPLE = ['#f2eff7','#cbc9e2','#9e9ac8','#756bb1','#54278f'];
-const GREY = [207,207,207];
-const $ = id => document.getElementById(id);
-const fmt = n => n.toLocaleString('es-CO');
-const hex = (h, a=255) => { h = (h||'#bdbdbd').replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16),a]; };
-const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PRIORITY = [
+  {code:'high',   label:'Alta',  color:'#4a1486'},
+  {code:'medium', label:'Media', color:'#9e7cc1'},
+  {code:'low',    label:'Baja',  color:'#b3bac8'},
+  {code:'no_data',label:'Sin dato satelital', color:'#ececec'}
+];
+const HOSP = '#c40d2e';
+const RAMPS = {
+  sa:    {field:'etc_sm_g',             stops:[0.45,0.6,0.75,0.85,1.0], colors:['#e8ebf7','#b9c3ea','#8193d6','#4a5fb3','#1f2a7a'], fmt:v=>dec(v,2)+' g', title:'Sa de diseño del suelo'},
+  hosp:  {field:'nearest_hospital_m',   stops:[0,500,1000,1500,2000],   colors:['#fff7bc','#fec44f','#fe9929','#d95f0e','#7f2704'], fmt:v=>fmt(v)+' m', title:'Distancia al hospital'},
+  emerg: {field:'nearest_emergency_m',  stops:[0,750,1500,2250,3000],   colors:['#fff7bc','#fec44f','#fe9929','#d95f0e','#7f2704'], fmt:v=>fmt(v)+' m', title:'Distancia a bomberos / D. Civil'},
+  open:  {field:'nearest_open_space_m', stops:[0,125,250,375,500],      colors:['#fff7bc','#fec44f','#fe9929','#d95f0e','#7f2704'], fmt:v=>fmt(v)+' m', title:'Distancia a espacio abierto'},
+  floors:{field:'floor_count',          stops:[1,2,3,5,8],              colors:['#e5e7ee','#b7bdd0','#8890ad','#55607f','#232b45'], fmt:v=>fmt(v), title:'Número de pisos'}
+};
+const ZONE_RAMP = {stops:[0.45,0.6,0.75,0.85,1.0], colors:['#eef1fb','#cdd5f2','#9fb0e3','#6c82cc','#3d4fa3']};
+const NULL_COLOR = '#d3d3d3';
 
-const state = {mode:'priority', vis:{zones:true,open:true,health:true,emerg:true,school:false}};
-let data = {}, map, overlay, buildingDots=[], saMin=0, saMax=1, zoneLabels=[], pts={hosp:[],health:[],emerg:[],school:[]}, openSpaces=[], counts={};
+const $ = id => document.getElementById(id);
+const fmt = n => (n==null||isNaN(n)) ? '—' : Math.round(n).toLocaleString('es-CO');
+const dec = (n,d=1) => (n==null||isNaN(n)) ? '—' : (+n).toFixed(d).replace('.',',');
+const pct = (a,b) => b ? 100*a/b : null;
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const truthy = v => v===true || v==='true' || v==='True' || v===1;
+const norm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+
+let map, B=[], byId=new Map(), zonesFC, fac=[], openFC, hospByName=new Map(), emergByName=new Map(), popup, selectedId=null, zoneMarkers=[];
+const DEF = {commune:'',hood:'',zone:'',status:['debris','roof_loss','no_change','no_data'],priority:['high','medium','low','no_data'],floors:'',agg:false,liq:false,site:false,sa:0,hosp:0,emerg:0,open:0};
+let F = JSON.parse(JSON.stringify(DEF));
+let mode='priority', group='hood', sortKey='high', sortDir=-1, filtered=[];
 
 function showMsg(html, err){ const m=$('msg'); m.className=err?'err':''; m.innerHTML=html; m.style.display='flex'; }
 
 async function load(){
-  const out = {};
-  for (const [k,u] of Object.entries(FILES)){
-    const r = await fetch(u);
-    if(!r.ok) throw new Error(u+' ('+r.status+')');
-    out[k] = await r.json();
-  }
+  const out={};
+  for(const [k,u] of Object.entries(FILES)){ const r=await fetch(u); if(!r.ok) throw new Error(u+' ('+r.status+')'); out[k]=await r.json(); }
   return out;
 }
-
-function bbox(fc){
-  let a=[Infinity,Infinity,-Infinity,-Infinity];
-  const walk = c => { if(typeof c[0]==='number'){ if(c[0]<a[0])a[0]=c[0]; if(c[0]>a[2])a[2]=c[0]; if(c[1]<a[1])a[1]=c[1]; if(c[1]>a[3])a[3]=c[1]; } else c.forEach(walk); };
-  fc.features.forEach(f=>f.geometry&&walk(f.geometry.coordinates));
-  return a;
-}
-function centroid(geom){
-  let rings = geom.type==='Polygon' ? [geom.coordinates[0]] : geom.coordinates.map(p=>p[0]);
+function ringCentroid(geom){
+  const rings = geom.type==='Polygon' ? [geom.coordinates[0]] : geom.coordinates.map(p=>p[0]);
   let best=rings[0], ba=-1;
-  rings.forEach(r=>{ let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; r.forEach(p=>{x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);y0=Math.min(y0,p[1]);y1=Math.max(y1,p[1]);}); const ar=(x1-x0)*(y1-y0); if(ar>ba){ba=ar;best=r;} });
-  let sx=0,sy=0; best.forEach(p=>{sx+=p[0];sy+=p[1];});
-  return [sx/best.length, sy/best.length];
-}
-function lerpColor(a,b,t){ return a.map((v,i)=>Math.round(v+(b[i]-v)*t)); }
-function saColor(f){
-  const p=f.properties;
-  if(p.etc_sm_g==null || p.requires_site_study) return GREY;
-  const t = saMax>saMin ? (p.etc_sm_g-saMin)/(saMax-saMin) : 0.5;
-  const x = Math.min(1,Math.max(0,t))*(PURPLE.length-1), i=Math.min(PURPLE.length-2,Math.floor(x));
-  return lerpColor(hex(PURPLE[i]).slice(0,3), hex(PURPLE[i+1]).slice(0,3), x-i);
+  rings.forEach(r=>{ let a=0; for(let i=0,j=r.length-1;i<r.length;j=i++) a+=(r[j][0]*r[i][1]-r[i][0]*r[j][1]); a=Math.abs(a); if(a>ba){ba=a;best=r;} });
+  let sx=0,sy=0; best.forEach(p=>{sx+=p[0];sy+=p[1];}); return [sx/best.length, sy/best.length];
 }
 
-function prepare(){
-  // Sa range
-  const vals = data.zones.features.map(f=>f.properties.etc_sm_g).filter(v=>v!=null&&!isNaN(v));
-  if(vals.length){ saMin=Math.min(...vals); saMax=Math.max(...vals); }
-  $('rampMin').textContent = saMin.toFixed(2).replace('.',',');
-  $('rampMax').textContent = saMax.toFixed(2).replace('.',',');
-  $('ramp').style.background = 'linear-gradient(90deg,'+PURPLE.join(',')+')';
-  zoneLabels = data.zones.features.filter(f=>f.geometry).map(f=>({pos:centroid(f.geometry), text:f.properties.seismic_zone_name||''}));
-  // facilities
-  data.facilities.features.forEach(f=>{
-    const p=f.properties, t=p.facility_type_code;
-    if(t==='open_space'){ openSpaces.push(f); return; }
-    let lon=p.lon, lat=p.lat;
-    if(lon==null||lat==null){ if(!f.geometry) return; const c = f.geometry.type==='Point'?f.geometry.coordinates:centroid(f.geometry); lon=c[0]; lat=c[1]; }
-    const d={p, position:[+lon,+lat]};
-    if(t==='health') (p.is_hospital===true||p.is_hospital==='true'||p.is_hospital===1 ? pts.hosp : pts.health).push(d);
-    else if(t==='emergency') pts.emerg.push(d);
-    else if(t==='school') pts.school.push(d);
-  });
-  // centroides de edificios: a escala de ciudad las huellas son de pocos píxeles
-  buildingDots = data.buildings.features.filter(f=>f.geometry).map(f=>({p:f.properties, position:centroid(f.geometry)}));
-  // counts
-  const total=data.buildings.features.length;
-  counts={total, priority:{}, status:{}};
-  data.buildings.features.forEach(f=>{
+/* ---------- preparación ---------- */
+function prepare(d){
+  const pts=[];
+  d.buildings.features.forEach(f=>{
     const p=f.properties;
-    const a=p.aftershock_priority_code||'no_data', b=p.structural_status_code||'no_data';
-    counts.priority[a]=(counts.priority[a]||0)+1;
-    counts.status[b]=(counts.status[b]||0)+1;
+    // banderas que el export trae como texto "true"/"false"
+    p.liq = truthy(p.is_liquefaction_susceptible); p.site = truthy(p.requires_site_study);
+    p.agg = truthy(p.has_aggravating_factor); p.suspect = truthy(p.is_suspect_polygon);
+    p.c = f.geometry ? ringCentroid(f.geometry) : null;
+    B.push(p); byId.set(p.building_id, p);
+    if(p.c) pts.push({type:'Feature', id:p.building_id, properties:f.properties, geometry:{type:'Point', coordinates:p.c}});
+    f.id = p.building_id;
   });
+  d.buildingPts = {type:'FeatureCollection', features:pts};
+  zonesFC = d.zones;
+  zonesFC.features.forEach(f=>{ const p=f.properties; p.site=truthy(p.requires_site_study); p.liq=truthy(p.is_liquefaction_susceptible); });
+  const open=[];
+  d.facilities.features.forEach(f=>{
+    const p=f.properties, t=p.facility_type_code;
+    if(t==='open_space'){ open.push(f); return; }
+    const kind = t==='health' ? (truthy(p.is_hospital)?'hosp':'health') : t;
+    const item={type:'Feature', properties:{...p, kind}, geometry:{type:'Point', coordinates:[+p.lon,+p.lat]}};
+    fac.push(item);
+    if(kind==='hosp' && p.facility_name) hospByName.set(norm(p.facility_name), item);
+    if(kind==='emergency' && p.facility_name) emergByName.set(norm(p.facility_name), item);
+  });
+  openFC = {type:'FeatureCollection', features:open};
 }
 
+/* ---------- filtros ---------- */
+function floorsOk(p){
+  if(!F.floors) return true;
+  if(F.floors==='null') return p.floor_count==null;
+  const [a,b]=F.floors.split('-').map(Number); return p.floor_count!=null && p.floor_count>=a && p.floor_count<=b;
+}
+function match(p, skip){
+  if(skip!=='commune' && F.commune && p.commune_name!==F.commune) return false;
+  if(skip!=='hood' && F.hood && hoodKey(p)!==F.hood) return false;
+  if(skip!=='zone' && F.zone && p.seismic_zone_name!==F.zone) return false;
+  if(!F.status.includes(p.structural_status_code)) return false;
+  if(!F.priority.includes(p.aftershock_priority_code)) return false;
+  if(!floorsOk(p)) return false;
+  if(F.agg && !p.agg) return false;
+  if(F.liq && !p.liq) return false;
+  if(F.site && !p.site) return false;
+  if(F.sa>0 && !(p.etc_sm_g!=null && p.etc_sm_g>=F.sa-1e-9)) return false;
+  if(F.hosp>0 && !(p.nearest_hospital_m>F.hosp)) return false;
+  if(F.emerg>0 && !(p.nearest_emergency_m>F.emerg)) return false;
+  if(F.open>0 && !(p.nearest_open_space_m>F.open)) return false;
+  return true;
+}
+const hoodKey = p => p.neighborhood_name+' · '+p.commune_name;
+function isDefault(){ return JSON.stringify(F)===JSON.stringify(DEF); }
+
+/* ---------- expresiones de color ---------- */
+function colorExpr(m){
+  if(m==='status') return ['match',['get','structural_status_code'],...STATUS.flatMap(s=>[s.code,s.color]),NULL_COLOR];
+  if(m==='priority') return ['match',['get','aftershock_priority_code'],...PRIORITY.flatMap(s=>[s.code,s.color]),NULL_COLOR];
+  const r=RAMPS[m];
+  return ['case',['==',['typeof',['get',r.field]],'number'],
+    ['interpolate',['linear'],['get',r.field],...r.stops.flatMap((s,i)=>[s,r.colors[i]])], NULL_COLOR];
+}
+const zoneFill = ['case',['==',['typeof',['get','etc_sm_g']],'number'],
+  ['interpolate',['linear'],['get','etc_sm_g'],...ZONE_RAMP.stops.flatMap((s,i)=>[s,ZONE_RAMP.colors[i]])],'#cfcfcf'];
+
+/* ---------- mapa ---------- */
+function addLayers(d){
+  map.addSource('zones',{type:'geojson',data:zonesFC});
+  map.addSource('open',{type:'geojson',data:openFC});
+  map.addSource('b',{type:'geojson',data:d.buildings});
+  map.addSource('bp',{type:'geojson',data:d.buildingPts});
+  map.addSource('fac',{type:'geojson',data:{type:'FeatureCollection',features:fac}});
+  map.addSource('links',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+
+  map.addLayer({id:'zones-fill',type:'fill',source:'zones',paint:{'fill-color':zoneFill,'fill-opacity':0.22}});
+  map.addLayer({id:'zones-line',type:'line',source:'zones',paint:{'line-color':['case',['get','site'],'#6b6b6b','#3d4fa3'],'line-width':['case',['get','site'],1.6,1.1],'line-dasharray':[3,2],'line-opacity':0.75}});
+  map.addLayer({id:'open-fill',type:'fill',source:'open',paint:{'fill-color':'#3a9d4a','fill-opacity':0.55,'fill-outline-color':'#24702f'}});
+  // contexto: todos los edificios en gris tenue (los no filtrados)
+  map.addLayer({id:'b-ctx',type:'fill',source:'b',minzoom:14,paint:{'fill-color':'#c9ccd3','fill-opacity':0.35}});
+  map.addLayer({id:'bp-ctx',type:'circle',source:'bp',maxzoom:14,paint:{'circle-color':'#b9bdc6','circle-opacity':0.35,'circle-radius':['interpolate',['linear'],['zoom'],11,1,14,2.2]}});
+  map.addLayer({id:'b-fill',type:'fill',source:'b',minzoom:14,paint:{'fill-color':colorExpr(mode),'fill-opacity':0.92}});
+  map.addLayer({id:'b-line',type:'line',source:'b',minzoom:15,paint:{'line-color':'#2b2f3a','line-width':0.4,'line-opacity':0.45}});
+  map.addLayer({id:'bp',type:'circle',source:'bp',maxzoom:14,paint:{'circle-color':colorExpr(mode),'circle-radius':['interpolate',['linear'],['zoom'],11,1.6,14,3.4],'circle-stroke-width':0.4,'circle-stroke-color':'rgba(40,45,60,.55)'}});
+  map.addLayer({id:'links',type:'line',source:'links',paint:{'line-color':['get','color'],'line-width':2.2,'line-dasharray':[2,1.5]}});
+  map.addLayer({id:'b-sel',type:'line',source:'b',filter:['==',['id'],-1],paint:{'line-color':'#111','line-width':3}});
+  map.addLayer({id:'bp-sel',type:'circle',source:'bp',filter:['==',['id'],-1],paint:{'circle-radius':7,'circle-color':'rgba(0,0,0,0)','circle-stroke-color':'#111','circle-stroke-width':2.5}});
+  const facLayer=(id,kind,color,r,sw)=>map.addLayer({id,type:'circle',source:'fac',filter:['==',['get','kind'],kind],
+    paint:{'circle-color':color,'circle-radius':['interpolate',['linear'],['zoom'],11,r*0.6,16,r],'circle-stroke-color':'#fff','circle-stroke-width':sw}});
+  facLayer('f-school','school','#8c5bd0',5,1);
+  facLayer('f-police','police','#3f6fb5',5,1);
+  facLayer('f-health','health','#e78ac3',4,0.8);
+  facLayer('f-emerg','emergency','#1d2330',7,2);
+  // hospitales: ícono de cruz para que la forma los distinga de los edificios con escombros
+  map.addImage('hosp-icon', hospIcon(), {pixelRatio:2});
+  map.addLayer({id:'f-hosp',type:'symbol',source:'fac',filter:['==',['get','kind'],'hosp'],
+    layout:{'icon-image':'hosp-icon','icon-size':['interpolate',['linear'],['zoom'],11,0.4,14,0.6,16,0.9],'icon-allow-overlap':true,'icon-ignore-placement':true}});
+  applyVisibility();
+  // etiquetas de microzonas (HTML para no depender de las fuentes del estilo base)
+  zonesFC.features.forEach(f=>{
+    // solo se rotulan las microzonas que tienen edificios del dataset
+    if(!f.geometry || !(f.properties.building_count>0)) return;
+    const el=document.createElement('div'); el.className='zlabel';
+    const p=f.properties; el.textContent=p.seismic_zone_name+(p.etc_sm_g!=null?' · '+dec(p.etc_sm_g,2)+' g':'');
+    zoneMarkers.push(new maplibregl.Marker({element:el}).setLngLat(ringCentroid(f.geometry)).addTo(map));
+  });
+}
+function hospIcon(){
+  const s=40, c=document.createElement('canvas'); c.width=s; c.height=s; const x=c.getContext('2d');
+  x.fillStyle='#fff'; x.strokeStyle='#3a1020'; x.lineWidth=3;
+  x.beginPath(); x.roundRect ? x.roundRect(3,3,s-6,s-6,7) : x.rect(3,3,s-6,s-6); x.fill(); x.stroke();
+  x.fillStyle=HOSP; const t=8, m=s/2; x.fillRect(m-t/2,9,t,s-18); x.fillRect(9,m-t/2,s-18,t);
+  return x.getImageData(0,0,s,s);
+}
+function applyVisibility(){
+  const set=(ids,on)=>ids.forEach(id=>map.getLayer(id)&&map.setLayoutProperty(id,'visibility',on?'visible':'none'));
+  set(['zones-fill','zones-line'],$('lZones').checked);
+  const showLabels=$('lZones').checked && map.getZoom()>=12.5;
+  zoneMarkers.forEach(m=>m.getElement().style.display=showLabels?'':'none');
+  set(['open-fill'],$('lOpen').checked);
+  set(['f-hosp'],$('lHosp').checked); set(['f-health'],$('lHealth').checked);
+  set(['f-emerg'],$('lEmerg').checked); set(['f-police'],$('lPolice').checked); set(['f-school'],$('lSchool').checked);
+}
+
+/* ---------- actualización ---------- */
+function update(opts={}){
+  filtered = B.filter(p=>match(p));
+  const ids = filtered.map(p=>p.building_id);
+  const flt = isDefault() ? null : ['in',['id'],['literal',ids]];
+  ['b-fill','bp','b-line'].forEach(l=>map.setFilter(l,flt));
+  map.setLayoutProperty('b-ctx','visibility',flt?'visible':'none');
+  map.setLayoutProperty('bp-ctx','visibility',flt?'visible':'none');
+  syncSelects(); renderSummary(); renderKpis(); renderStack(); renderTable(); renderLegend(); writeHash();
+  if(opts.fit) fitTo(filtered);
+}
+function fitTo(list){
+  const pts=list.filter(p=>p.c); if(!pts.length) return;
+  let a=[Infinity,Infinity,-Infinity,-Infinity];
+  pts.forEach(p=>{a[0]=Math.min(a[0],p.c[0]);a[1]=Math.min(a[1],p.c[1]);a[2]=Math.max(a[2],p.c[0]);a[3]=Math.max(a[3],p.c[1]);});
+  map.fitBounds([[a[0],a[1]],[a[2],a[3]]],{padding:60,maxZoom:17,duration:700});
+}
+
+function renderSummary(){
+  const parts=[];
+  if(F.commune) parts.push('<b>'+esc(F.commune)+'</b>');
+  if(F.hood) parts.push('barrio <b>'+esc(F.hood.split(' · ')[0])+'</b>');
+  if(F.zone) parts.push('microzona <b>'+esc(F.zone)+'</b>');
+  if(F.status.length<4) parts.push('daño: '+F.status.map(c=>STATUS.find(s=>s.code===c).short.toLowerCase()).join(', '));
+  if(F.priority.length<4) parts.push('prioridad: '+F.priority.map(c=>PRIORITY.find(s=>s.code===c).label.toLowerCase()).join(', '));
+  if(F.floors) parts.push($('fFloors').selectedOptions[0].text.toLowerCase());
+  if(F.agg) parts.push('con agravante'); if(F.liq) parts.push('suelo licuable'); if(F.site) parts.push('estudio particular');
+  if(F.sa>0) parts.push('Sa ≥ '+dec(F.sa,2)+' g');
+  if(F.hosp>0) parts.push('hospital > '+fmt(F.hosp)+' m'); if(F.emerg>0) parts.push('bomberos > '+fmt(F.emerg)+' m'); if(F.open>0) parts.push('espacio abierto > '+fmt(F.open)+' m');
+  $('filterSummary').innerHTML = parts.length ? 'Filtrando: '+parts.join(' · ') : 'Sin filtros: todos los edificios del dataset.';
+}
+function stats(list){
+  const s={n:list.length,dmg:0,debris:0,roof:0,nodata:0,high:0,area:0,areaNoData:0,hospFar:0,liq:0,site:0,hosp:[],emerg:[],open:[]};
+  list.forEach(p=>{
+    const st=p.structural_status_code;
+    if(st==='debris'){s.debris++;s.dmg++;} else if(st==='roof_loss'){s.roof++;s.dmg++;} else if(st==='no_data') s.nodata++;
+    if(p.aftershock_priority_code==='high') s.high++;
+    s.area+=p.area_m2||0; if(st==='no_data') s.areaNoData+=p.area_m2||0;
+    if(p.nearest_hospital_m>1000) s.hospFar++;
+    if(p.liq) s.liq++; if(p.site) s.site++;
+    s.hosp.push(p.nearest_hospital_m); s.emerg.push(p.nearest_emergency_m); s.open.push(p.nearest_open_space_m);
+  });
+  s.withData=s.n-s.nodata; s.dmgPct=pct(s.dmg,s.withData);
+  return s;
+}
+function renderKpis(){
+  const s=stats(filtered), all=stats(B);
+  const k=(v,l,cls)=>'<div class="kpi'+(cls?' '+cls:'')+'"><b>'+v+'</b><span>'+l+'</span></div>';
+  $('kpis').innerHTML =
+    k(fmt(s.n),'edificios'+(s.n!==all.n?' de '+fmt(all.n):''))+
+    k(s.dmgPct==null?'—':dec(s.dmgPct)+'%','con daño visible ('+fmt(s.dmg)+' de '+fmt(s.withData)+' con dato)', s.dmgPct>all.dmgPct+3?'alert':'')+
+    k(fmt(s.debris),'con escombros (alta probabilidad)', s.debris?'alert':'')+
+    k(fmt(s.high),'prioridad alta ante réplicas', s.high?'alert':'')+
+    k(fmt(s.hospFar),'a más de 1 km de un hospital ('+(s.n?dec(pct(s.hospFar,s.n)):'—')+'%)')+
+    k(fmt(median(s.hosp))+' m','distancia mediana al hospital')+
+    k(fmt(median(s.emerg))+' m','mediana a bomberos / D. Civil')+
+    k(fmt(median(s.open))+' m','mediana a espacio abierto')+
+    k(fmt(s.liq+s.site),'sobre suelo licuable o de estudio particular')+
+    k(s.area?dec(pct(s.areaNoData,s.area))+'%':'—','del área de huella sin dato satelital ('+fmt(s.nodata)+' edif.)');
+}
+function renderStack(){
+  const s=stats(filtered), c={debris:s.debris,roof_loss:s.roof,no_change:s.withData-s.dmg,no_data:s.nodata};
+  $('stack').innerHTML = STATUS.map(x=>c[x.code]?'<div title="'+x.label+': '+fmt(c[x.code])+'" style="width:'+(100*c[x.code]/(s.n||1))+'%;background:'+x.color+'"></div>':'').join('');
+  $('stackLeg').innerHTML = STATUS.map(x=>'<div class="leg-row"><span class="sw" style="background:'+x.color+'"></span>'+x.label+'<span class="n">'+fmt(c[x.code])+' · '+dec(pct(c[x.code],s.n)||0)+'%</span></div>').join('');
+}
+
+/* ---------- tabla comparativa ---------- */
+const GROUPS = {
+  hood:{key:hoodKey, label:'Barrio', skip:'hood', set:v=>{F.hood=v;}},
+  commune:{key:p=>p.commune_name, label:'Comuna', skip:'commune', set:v=>{F.commune=v;F.hood='';}},
+  zone:{key:p=>p.seismic_zone_name||'Sin microzona', label:'Microzona', skip:'zone', set:v=>{F.zone=v==='Sin microzona'?'':v;}}
+};
+const COLS = [
+  {k:'n',label:'Edif.',v:g=>g.n,f:fmt},
+  {k:'dmgPct',label:'% daño',v:g=>g.dmgPct,f:v=>v==null?'—':'<span class="bar" style="width:'+Math.round(v*0.35)+'px"></span>'+dec(v)},
+  {k:'debris',label:'Escomb.',v:g=>g.debris,f:fmt},
+  {k:'high',label:'Alta',v:g=>g.high,f:fmt},
+  {k:'hospMed',label:'Hosp. m',v:g=>g.hospMed,f:fmt}
+];
+function renderTable(){
+  const G=GROUPS[group], m=new Map();
+  // la tabla ignora el filtro de su propia dimensión para poder comparar entre grupos
+  B.filter(p=>match(p,G.skip)).forEach(p=>{ const k=G.key(p); if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
+  let rows=[...m.entries()].map(([name,list])=>{ const s=stats(list); return {name,n:s.n,dmgPct:s.dmgPct,debris:s.debris,high:s.high,hospMed:median(s.hosp)}; });
+  const col=COLS.find(c=>c.k===sortKey)||COLS[3];
+  rows.sort((a,b)=> sortKey==='name' ? sortDir*a.name.localeCompare(b.name) : sortDir*((col.v(a)??-1)-(col.v(b)??-1)));
+  const cur = group==='hood'?F.hood:group==='commune'?F.commune:F.zone;
+  $('groupTable').tHead.innerHTML='<tr><th data-k="name" class="'+(sortKey==='name'?'sorted':'')+'">'+G.label+'</th>'+COLS.map(c=>'<th data-k="'+c.k+'" class="'+(sortKey===c.k?'sorted':'')+'">'+c.label+(sortKey===c.k?(sortDir<0?' ↓':' ↑'):'')+'</th>').join('')+'</tr>';
+  $('groupTable').tBodies[0].innerHTML = rows.map(r=>'<tr data-v="'+esc(r.name)+'"'+(r.name===cur?' style="background:#e8ecf6"':'')+'><td>'+esc(group==='hood'?r.name.split(' · ')[0]:r.name)+(group==='hood'?'<br><span style="color:var(--muted);font-size:10.5px">'+esc(r.name.split(' · ')[1])+'</span>':'')+'</td>'+COLS.map(c=>'<td>'+c.f(c.v(r))+'</td>').join('')+'</tr>').join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Sin edificios con estos filtros</td></tr>';
+}
+
+/* ---------- leyenda ---------- */
 function renderLegend(){
-  const cats = state.mode==='priority'?PRIORITY:STATUS, c = state.mode==='priority'?counts.priority:counts.status;
-  $('legendBuildings').innerHTML = cats.map(k=>{
-    const n=c[k.code]||0, pct=counts.total?(100*n/counts.total):0;
-    return '<div class="row"><span class="sw" style="background:'+k.color+'"></span>'+k.label+'<span class="n">'+fmt(n)+' · '+pct.toFixed(1).replace('.',',')+'%</span></div>';
-  }).join('');
-  $('priorityNote').style.display = state.mode==='priority'?'block':'none';
-}
-
-const isHosp = d => d.p.is_hospital===true||d.p.is_hospital==='true'||d.p.is_hospital===1;
-function layers(){
-  const v=state.vis, L=[];
-  L.push(new deck.GeoJsonLayer({
-    id:'zones', data:data.zones, visible:v.zones, pickable:true, stroked:true, filled:true,
-    getFillColor:f=>{const c=saColor(f); return [c[0],c[1],c[2],40];},
-    getLineColor:f=>{const p=f.properties; return (p.etc_sm_g==null||p.requires_site_study)?[90,90,90,220]:[84,39,143,150];},
-    getLineWidth:f=>{const p=f.properties; return (p.etc_sm_g==null||p.requires_site_study)?2.5:1.2;},
-    lineWidthUnits:'pixels'
-  }));
-  L.push(new deck.TextLayer({
-    id:'zone-labels', data:zoneLabels, visible:v.zones, pickable:false,
-    getPosition:d=>d.pos, getText:d=>d.text, getSize:11, getColor:[60,40,100,230],
-    fontFamily:'system-ui, Segoe UI, Arial, sans-serif', fontWeight:600,
-    outlineWidth:3, outlineColor:[255,255,255,230], fontSettings:{sdf:true},
-    background:false, billboard:true, getTextAnchor:'middle', getAlignmentBaseline:'center'
-  }));
-  L.push(new deck.GeoJsonLayer({
-    id:'open', data:openSpaces, visible:v.open, pickable:true, stroked:true, filled:true,
-    getFillColor:[77,172,38,128], getLineColor:[40,110,20,200], getLineWidth:1, lineWidthUnits:'pixels'
-  }));
-  L.push(new deck.ScatterplotLayer({
-    id:'building-dots', data:buildingDots, pickable:false,
-    getPosition:d=>d.position, getFillColor:d=>hex(state.mode==='priority'?d.p.priority_color_hex:d.p.color_hex,235),
-    getRadius:12, radiusUnits:'meters', radiusMinPixels:2.2, radiusMaxPixels:6,
-    updateTriggers:{getFillColor:[state.mode]}
-  }));
-  L.push(new deck.GeoJsonLayer({
-    id:'buildings', data:data.buildings, pickable:true, autoHighlight:true, highlightColor:[255,255,0,200],
-    stroked:true, filled:true, getFillColor:f=>hex(state.mode==='priority'?f.properties.priority_color_hex:f.properties.color_hex,235),
-    getLineColor:[40,40,40,120], getLineWidth:0.5, lineWidthUnits:'pixels', lineWidthMinPixels:0.3,
-    updateTriggers:{getFillColor:[state.mode]}
-  }));
-  L.push(new deck.ScatterplotLayer({
-    id:'health', data:[...pts.health,...pts.hosp], visible:v.health, pickable:true,
-    getPosition:d=>d.position, getLineColor:[255,255,255,255],
-    getFillColor:d=>isHosp(d)?[197,27,125,255]:[197,27,125,90],
-    getRadius:d=>isHosp(d)?8:2,
-    radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:d=>isHosp(d)?1.5:0.5
-  }));
-  L.push(new deck.ScatterplotLayer({
-    id:'emerg', data:pts.emerg, visible:v.emerg, pickable:true,
-    getPosition:d=>d.position, getFillColor:[37,37,37,255], getLineColor:[255,255,255,255],
-    getRadius:8, radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:2
-  }));
-  L.push(new deck.ScatterplotLayer({
-    id:'school', data:pts.school, visible:v.school, pickable:true,
-    getPosition:d=>d.position, getFillColor:[123,50,148,255], getLineColor:[255,255,255,255],
-    getRadius:4, radiusUnits:'pixels', stroked:true, lineWidthUnits:'pixels', getLineWidth:1
-  }));
-  return L;
-}
-function refresh(){ overlay.setProps({layers:layers()}); renderLegend(); }
-
-function tooltip(info){
-  const o=info.object; if(!o) return null;
-  const id=info.layer.id, st={backgroundColor:'#fff',color:'#1d2330',fontSize:'12px',borderRadius:'8px',boxShadow:'0 2px 10px rgba(0,0,0,.25)',padding:'8px 10px',maxWidth:'280px'};
   let h='';
-  const m = (v,u)=> v==null||v===''||isNaN(+v)?'sin dato':fmt(Math.round(+v))+' '+u;
-  if(id==='buildings'){
-    const p=o.properties, pr=PRIORITY.find(x=>x.code===p.aftershock_priority_code)||PRIORITY[3];
-    h='<b>'+esc(p.neighborhood_name||'Barrio sin nombre')+'</b>'+(p.commune_name?' ('+esc(p.commune_name)+')':'')+
-      '<br>Estado estructural: <b>'+esc(p.structural_status||'Sin dato')+'</b>'+
-      '<br>Prioridad ante réplicas: <b>'+pr.label+'</b>'+
-      '<br>Microzona: '+esc(p.seismic_zone_name||'sin dato')+' · Sa '+(p.etc_sm_g==null?'sin dato':(+p.etc_sm_g).toFixed(2).replace('.',',')+' g')+
-      '<br>Pisos: '+(p.floor_count==null?'sin dato':esc(p.floor_count))+
-      '<br>Hospital más cercano: '+esc(p.nearest_hospital_name||'sin dato')+' ('+m(p.nearest_hospital_m,'m')+')'+
-      '<br>Bomberos/Defensa Civil: '+m(p.nearest_emergency_m,'m')+
-      '<br>Espacios abiertos a 500 m: '+(p.open_space_count_500m==null?'sin dato':esc(p.open_space_count_500m));
-  } else if(id==='zones'){
-    const p=o.properties;
-    h='<b>Microzona '+esc(p.seismic_zone_name||'')+'</b><br>Sa: '+(p.etc_sm_g==null?'sin dato':(+p.etc_sm_g).toFixed(2).replace('.',',')+' g')+
-      (p.requires_site_study?' (requiere estudio particular)':'')+
-      '<br>Edificios dañados: '+(p.damaged_building_pct==null?'sin dato':(+p.damaged_building_pct).toFixed(1).replace('.',',')+'%');
-  } else if(id==='open'){
-    const p=o.properties; h='<b>'+esc(p.facility_name||'Espacio abierto')+'</b><br>'+esc(p.facility_subtype||'Espacio abierto seguro');
+  if(mode==='status'||mode==='priority'){
+    const cats=mode==='status'?STATUS:PRIORITY, key=mode==='status'?'structural_status_code':'aftershock_priority_code';
+    const c={}; filtered.forEach(p=>{c[p[key]]=(c[p[key]]||0)+1;});
+    h='<div class="t">'+(mode==='status'?'Estado estructural (satélite)':'Prioridad ante réplicas')+'</div>'+
+      cats.map(x=>'<div class="leg-row"><span class="sw" style="background:'+x.color+'"></span>'+x.label+'<span class="n">'+fmt(c[x.code]||0)+'</span></div>').join('');
   } else {
-    const p=o.p; h='<b>'+esc(p.facility_name||'Sin nombre')+'</b><br>'+esc(p.facility_subtype||'');
+    const r=RAMPS[mode];
+    h='<div class="t">'+r.title+'</div><div class="ramp" style="background:linear-gradient(90deg,'+r.colors.join(',')+')"></div>'+
+      '<div class="ramp-l"><span>'+r.fmt(r.stops[0])+'</span><span>'+r.fmt(r.stops[r.stops.length-1])+(mode==='floors'?'+':'')+'</span></div>'+
+      '<div class="leg-row" style="margin-top:4px"><span class="sw" style="background:'+NULL_COLOR+'"></span>Sin dato</div>';
   }
-  return {html:h, style:st};
+  if(!isDefault()) h+='<div class="leg-row"><span class="sw" style="background:#c9ccd3;opacity:.6"></span>Fuera del filtro</div>';
+  if($('lZones').checked) h+='<div style="margin-top:6px" class="t">Microzona: Sa de diseño</div><div class="ramp" style="background:linear-gradient(90deg,'+ZONE_RAMP.colors.join(',')+');opacity:.8"></div><div class="ramp-l"><span>0,45 g</span><span>1,00 g</span></div>';
+  $('legend').innerHTML=h;
 }
 
-/* ---------- PNG export ---------- */
-function wrap(ctx, text, x, y, maxW, lh){
-  const words=text.split(' '); let line='';
-  for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW && line){ ctx.fillText(line,x,y); y+=lh; line=w; } else line=t; }
-  ctx.fillText(line,x,y); return y+lh;
+/* ---------- detalle del edificio ---------- */
+function select(id, fly){
+  selectedId=id;
+  const p=byId.get(id);
+  map.setFilter('b-sel',['==',['id'],id==null?-1:id]); map.setFilter('bp-sel',['==',['id'],id==null?-1:id]);
+  const links=[];
+  if(!p){ $('detail').style.display='none'; map.getSource('links').setData({type:'FeatureCollection',features:[]}); return; }
+  const h=hospByName.get(norm(p.nearest_hospital_name)), e=emergByName.get(norm(p.nearest_emergency_name));
+  if(p.c&&h) links.push({type:'Feature',properties:{color:HOSP},geometry:{type:'LineString',coordinates:[p.c,h.geometry.coordinates]}});
+  if(p.c&&e) links.push({type:'Feature',properties:{color:'#1d2330'},geometry:{type:'LineString',coordinates:[p.c,e.geometry.coordinates]}});
+  map.getSource('links').setData({type:'FeatureCollection',features:links});
+  const st=STATUS.find(s=>s.code===p.structural_status_code)||STATUS[3], pr=PRIORITY.find(s=>s.code===p.aftershock_priority_code)||PRIORITY[3];
+  const damaged = ['debris','roof_loss'].includes(p.structural_status_code);
+  const hospFar=p.nearest_hospital_m>1000;
+  const why=[
+    [p.liq,'Suelo susceptible a licuación'],
+    [p.site,'Microzona que requiere estudio particular de sitio'],
+    [hospFar,'Hospital a más de 1 km'+(hospFar?' ('+fmt(p.nearest_hospital_m)+' m)':'')],
+    [p.open_space_count_500m===0,'Sin espacio de encuentro a 500 m']
+  ];
+  const active=why.filter(w=>w[0]);
+  let reason;
+  if(p.aftershock_priority_code==='no_data') reason='Sin dato satelital: no se puede priorizar. Requiere inspección en sitio.';
+  else if(p.aftershock_priority_code==='high') reason='Daño satelital ('+st.short.toLowerCase()+') y al menos un agravante.';
+  else if(p.aftershock_priority_code==='medium') reason=damaged?'Daño satelital sin agravantes de suelo ni de acceso.':'Sin daño visible, pero sobre suelo licuable o de estudio particular.';
+  else reason='Sin daño visible y sin agravante de suelo. "Sin cambio aparente" no descarta daño interno.';
+  $('detail').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px"><div><h3>Edificio #'+p.building_id+'</h3>'+
+    '<div class="sub">'+esc(p.neighborhood_name)+' · '+esc(p.commune_name)+'</div></div>'+
+    '<button class="btn" id="closeDetail" type="button" style="padding:3px 8px">✕</button></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><span class="badge" style="background:'+st.color+';color:'+(st.code==='no_data'?'#1d2330':'#fff')+'">'+st.label+'</span>'+
+    '<span class="badge" style="background:'+pr.color+';color:'+(['no_data','low'].includes(pr.code)?'#1d2330':'#fff')+'">Prioridad '+pr.label.toLowerCase()+'</span></div>'+
+    '<div style="font-size:12px;margin-bottom:6px">'+reason+'</div>'+
+    (p.aftershock_priority_code!=='no_data'?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Agravantes ('+active.length+' de 4):</div><ul class="why">'+why.map(w=>'<li class="'+(w[0]?'':'ok')+'">'+(w[0]?'':'<span style="color:var(--muted)">No · </span>')+w[1]+'</li>').join('')+'</ul>':'')+
+    '<h2>Suelo</h2><dl>'+
+      '<dt>Microzona</dt><dd>'+esc(p.seismic_zone_name||'sin dato')+'</dd>'+
+      '<dt>Sa de diseño</dt><dd>'+(p.etc_sm_g==null?'sin dato':dec(p.etc_sm_g,2)+' g')+'</dd>'+
+      '<dt>Periodo Tc</dt><dd>'+(p.etc_tc_s==null?'sin dato':dec(p.etc_tc_s,2)+' s')+'</dd>'+
+      (p.seismic_zone_overlap_count>1?'<dt>Toca</dt><dd>'+p.seismic_zone_overlap_count+' microzonas</dd>':'')+
+    '</dl><h2>Edificio</h2><dl>'+
+      '<dt>Pisos</dt><dd>'+(p.floor_count==null?'sin dato':fmt(p.floor_count))+'</dd>'+
+      '<dt>Huella</dt><dd>'+fmt(p.area_m2)+' m²</dd>'+
+      '<dt>Área construida</dt><dd>'+fmt(p.built_area_m2)+' m²'+(p.floor_count==null?' (est.)':'')+'</dd>'+
+      '<dt>Índice de escombros</dt><dd>'+(p.debris_index==null?'sin dato':dec(p.debris_index,2))+'</dd>'+
+      (p.suspect?'<dt>Polígono</dt><dd>dudoso (área atípica)</dd>':'')+
+    '</dl><h2>Ayuda más cercana</h2><dl>'+
+      '<dt><span class="hicon"></span> Hospital</dt><dd>'+fmt(p.nearest_hospital_m)+' m</dd>'+
+      '<dd style="grid-column:1/-1;color:var(--muted);font-size:11px">'+esc(p.nearest_hospital_name||'')+'</dd>'+
+      '<dt><span class="dot" style="background:#1d2330;display:inline-block;vertical-align:middle"></span> Bomberos / D. Civil</dt><dd>'+fmt(p.nearest_emergency_m)+' m</dd>'+
+      '<dd style="grid-column:1/-1;color:var(--muted);font-size:11px">'+esc(p.nearest_emergency_name||'')+'</dd>'+
+      '<dt>Salud (cualquiera)</dt><dd>'+fmt(p.nearest_health_m)+' m</dd>'+
+      '<dt>Policía</dt><dd>'+fmt(p.nearest_police_m)+' m</dd>'+
+      '<dt>Colegio</dt><dd>'+fmt(p.nearest_school_m)+' m</dd>'+
+      '<dt>Espacio abierto</dt><dd>'+fmt(p.nearest_open_space_m)+' m</dd>'+
+      '<dt>Espacios a 500 m</dt><dd>'+fmt(p.open_space_count_500m)+'</dd>'+
+    '</dl>';
+  $('detail').style.display='block';
+  $('closeDetail').onclick=()=>select(null);
+  if(window.innerWidth<=1100){ $('right').classList.add('open'); $('left').classList.remove('open'); }
+  $('right').scrollTop=0;
+  if(fly && p.c) map.flyTo({center:p.c,zoom:Math.max(map.getZoom(),17),duration:700});
 }
-function rrect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-// El canvas WebGL solo es legible dentro del evento 'render' (después el buffer se limpia)
-function exportPng(){ map.once('render', composePng); map.triggerRepaint(); }
-function composePng(){
-  const mc = map.getCanvas();
-  const dc = null; // modo interleaved: deck dibuja dentro del canvas de MapLibre
-  const W=mc.width, H=mc.height, k=W/mc.clientWidth;
-  const c=document.createElement('canvas'); c.width=W; c.height=H;
-  const ctx=c.getContext('2d');
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
-  ctx.drawImage(mc,0,0,W,H);
-  if(dc) ctx.drawImage(dc,0,0,W,H);
-  ctx.save(); ctx.scale(k,k);
-  const font='system-ui, "Segoe UI", Arial, sans-serif';
-  // header
-  const hw=Math.min(460, mc.clientWidth-20);
-  ctx.fillStyle='rgba(255,255,255,.94)'; rrect(ctx,10,10,hw,86,10); ctx.fill();
-  ctx.fillStyle='#1d2330'; ctx.font='700 17px '+font; ctx.textBaseline='top';
-  let y=wrap(ctx,'Sismo del 10 de agosto: daño y capacidad de respuesta ante réplicas',22,20,hw-24,21);
-  ctx.fillStyle='#5b6475'; ctx.font='12px '+font;
-  wrap(ctx,'5.146 edificios de Cali · daño satelital, suelo (microzonificación) y cercanía a hospitales, bomberos y espacios abiertos',22,y+2,hw-24,15);
-  // legend
-  const cats=state.mode==='priority'?PRIORITY:STATUS, cn=state.mode==='priority'?counts.priority:counts.status;
-  const lx=10, ly=108, lw=300;
-  const rows=cats.length;
-  const lh=26+rows*20+8+ (state.mode==='priority'?36:0) +22+ (state.vis.open?20:0)+(state.vis.health?20:0)+(state.vis.emerg?20:0)+(state.vis.school?20:0) + (state.vis.zones?52:0)+10;
-  ctx.fillStyle='rgba(255,255,255,.94)'; rrect(ctx,lx,ly,lw,lh,10); ctx.fill();
-  let yy=ly+10, xx=lx+12;
-  ctx.fillStyle='#5b6475'; ctx.font='700 11px '+font; ctx.fillText(state.mode==='priority'?'PRIORIDAD ANTE RÉPLICAS':'ESTADO ESTRUCTURAL',xx,yy); yy+=18;
-  ctx.font='12.5px '+font;
-  cats.forEach(cat=>{
-    const n=cn[cat.code]||0, pct=counts.total?(100*n/counts.total):0;
-    ctx.fillStyle=cat.color; ctx.fillRect(xx,yy,14,14); ctx.strokeStyle='rgba(0,0,0,.3)'; ctx.strokeRect(xx,yy,14,14);
-    ctx.fillStyle='#1d2330'; ctx.textAlign='left'; ctx.fillText(cat.label,xx+22,yy);
-    ctx.fillStyle='#5b6475'; ctx.textAlign='right'; ctx.fillText(fmt(n)+' · '+pct.toFixed(1).replace('.',',')+'%',lx+lw-12,yy); ctx.textAlign='left';
-    yy+=20;
+
+/* ---------- controles ---------- */
+function fillSelect(el, values, allLabel, cur){
+  el.innerHTML='<option value="">'+allLabel+'</option>'+values.map(v=>'<option value="'+esc(v.v)+'"'+(v.v===cur?' selected':'')+'>'+esc(v.t)+'</option>').join('');
+}
+function syncSelects(){
+  const count=(skip,key)=>{ const m=new Map(); B.filter(p=>match(p,skip)).forEach(p=>{const k=key(p); if(k) m.set(k,(m.get(k)||0)+1);}); return m; };
+  const cc=count('commune',p=>p.commune_name), hc=count('hood',hoodKey), zc=count('zone',p=>p.seismic_zone_name);
+  const communes=[...new Set(B.map(p=>p.commune_name))].sort();
+  fillSelect($('fCommune'), communes.map(v=>({v,t:v+' ('+fmt(cc.get(v)||0)+')'})), 'Todas las comunas', F.commune);
+  const hoods=[...new Set(B.filter(p=>!F.commune||p.commune_name===F.commune).map(hoodKey))].sort((a,b)=>a.localeCompare(b));
+  fillSelect($('fHood'), hoods.map(v=>({v,t:v.split(' · ')[0]+(F.commune?'':' – '+v.split(' · ')[1].replace('Comuna ','C'))+' ('+fmt(hc.get(v)||0)+')'})), 'Todos los barrios', F.hood);
+  const zones=[...new Set(B.map(p=>p.seismic_zone_name).filter(Boolean))].sort();
+  const zsa=new Map(zonesFC.features.map(f=>[f.properties.seismic_zone_name,f.properties.etc_sm_g]));
+  fillSelect($('fZone'), zones.map(v=>({v,t:v+(zsa.get(v)!=null?' · Sa '+dec(zsa.get(v),2)+' g':'')+' ('+fmt(zc.get(v)||0)+')'})), 'Todas las microzonas', F.zone);
+  // chips
+  document.querySelectorAll('#fStatus .chip').forEach(ch=>ch.classList.toggle('on',F.status.includes(ch.dataset.v)));
+  document.querySelectorAll('#fPriority .chip').forEach(ch=>ch.classList.toggle('on',F.priority.includes(ch.dataset.v)));
+  $('fFloors').value=F.floors; $('fAgg').checked=F.agg; $('fLiq').checked=F.liq; $('fSite').checked=F.site;
+  $('fSa').value=F.sa; $('fHosp').value=F.hosp; $('fEmerg').value=F.emerg; $('fOpen').value=F.open;
+  $('oSa').textContent=F.sa>0?'≥ '+dec(F.sa,2)+' g':'cualquiera';
+  $('oHosp').textContent=F.hosp>0?'> '+fmt(F.hosp)+' m':'cualquiera';
+  $('oEmerg').textContent=F.emerg>0?'> '+fmt(F.emerg)+' m':'cualquiera';
+  $('oOpen').textContent=F.open>0?'> '+fmt(F.open)+' m':'cualquiera';
+}
+function chips(el, cats, key){
+  el.innerHTML=cats.map(c=>'<span class="chip on" data-v="'+c.code+'"><span class="sw" style="background:'+c.color+'"></span>'+(c.short||c.label)+'</span>').join('');
+  el.addEventListener('click',e=>{
+    const ch=e.target.closest('.chip'); if(!ch) return;
+    const v=ch.dataset.v, arr=F[key];
+    // clic simple alterna; si todos estaban activos, deja solo el elegido
+    if(arr.length===cats.length) F[key]=[v];
+    else if(arr.includes(v)) F[key]=arr.length>1?arr.filter(x=>x!==v):cats.map(c=>c.code);
+    else F[key]=[...arr,v];
+    update();
   });
-  if(state.mode==='priority'){
-    ctx.fillStyle='#5b6475'; ctx.font='10.5px '+font;
-    yy=wrap(ctx,'Alta = dañado + agravante (suelo licuable o de estudio particular, hospital a más de 1 km o sin espacio abierto a 500 m).',xx,yy+2,lw-24,13)+4;
-  }
-  yy+=4; ctx.font='12.5px '+font;
-  const sym=(color,label,kind)=>{
-    if(kind==='sq'){ ctx.fillStyle=color; ctx.fillRect(xx,yy,14,14); }
-    else { ctx.beginPath(); ctx.arc(xx+7,yy+7,6,0,6.283); ctx.fillStyle=color; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle='#fff'; ctx.stroke(); }
-    ctx.fillStyle='#1d2330'; ctx.fillText(label,xx+22,yy); yy+=20;
-  };
-  if(state.vis.open) sym('#4dac26','Espacios abiertos seguros','sq');
-  if(state.vis.health) sym('#c51b7d','Hospitales y salud','dot');
-  if(state.vis.emerg) sym('#252525','Bomberos y Defensa Civil','dot');
-  if(state.vis.school) sym('#7b3294','Colegios','dot');
-  if(state.vis.zones){
-    yy+=2; ctx.fillStyle='#5b6475'; ctx.font='700 11px '+font; ctx.fillText('ACELERACIÓN DE DISEÑO Sa (g)',xx,yy); yy+=16;
-    const g=ctx.createLinearGradient(xx,0,xx+lw-24,0); PURPLE.forEach((p,i)=>g.addColorStop(i/(PURPLE.length-1),p));
-    ctx.fillStyle=g; ctx.fillRect(xx,yy,lw-24,10); yy+=12;
-    ctx.font='11px '+font; ctx.fillText(saMin.toFixed(2).replace('.',','),xx,yy); ctx.textAlign='right'; ctx.fillText(saMax.toFixed(2).replace('.',','),xx+lw-24,yy); ctx.textAlign='left';
-  }
-  // footer
-  ctx.font='11px '+font; ctx.fillStyle='rgba(255,255,255,.94)';
-  const ft='Fuentes: dataset del hackathon (análisis satelital), IDESC – Alcaldía de Cali (microzonificación sísmica, equipamientos, barrios), USGS. Prioridad: criterio del equipo, no cifra oficial.';
-  const fw=mc.clientWidth-20; rrect(ctx,10,mc.clientHeight-34,fw,26,8); ctx.fill();
-  ctx.fillStyle='#5b6475'; ctx.textBaseline='middle'; ctx.fillText(ft,18,mc.clientHeight-21,fw-16);
+}
+
+/* ---------- búsqueda ---------- */
+let suggItems=[], suggIdx=-1;
+function searchIndex(q){
+  const n=norm(q); if(!n) return [];
+  const out=[];
+  const num=n.replace(/^#/,'');
+  if(/^\d+$/.test(num) && byId.has(+num)) out.push({k:'Edificio',t:'#'+num+' · '+byId.get(+num).neighborhood_name,act:()=>{select(+num,true);}});
+  [...new Set(B.map(p=>p.commune_name))].filter(v=>norm(v).includes(n)).forEach(v=>out.push({k:'Comuna',t:v,act:()=>{F.commune=v;F.hood='';update({fit:true});}}));
+  [...new Set(B.map(hoodKey))].filter(v=>norm(v.split(' · ')[0]).includes(n)).sort().forEach(v=>out.push({k:'Barrio',t:v,act:()=>{F.hood=v;F.commune=v.split(' · ')[1];update({fit:true});}}));
+  [...new Set(B.map(p=>p.seismic_zone_name).filter(Boolean))].filter(v=>norm(v).includes(n)||norm(v).replace('zona ','')===n).forEach(v=>out.push({k:'Microzona',t:v,act:()=>{F.zone=v;update({fit:true});}}));
+  fac.filter(f=>['hosp','emergency','health'].includes(f.properties.kind) && f.properties.facility_name && norm(f.properties.facility_name).includes(n)).slice(0,8)
+     .forEach(f=>out.push({k:f.properties.kind==='emergency'?'Emergencia':'Salud',t:f.properties.facility_name,act:()=>{
+        map.flyTo({center:f.geometry.coordinates,zoom:16.5,duration:700});
+        new maplibregl.Popup({offset:8}).setLngLat(f.geometry.coordinates).setHTML(facHtml(f.properties)).addTo(map);}}));
+  return out.slice(0,14);
+}
+function renderSugg(){
+  const box=$('sugg');
+  if(!suggItems.length){ box.style.display='none'; return; }
+  box.innerHTML=suggItems.map((s,i)=>'<div data-i="'+i+'" class="'+(i===suggIdx?'on':'')+'"><span class="k">'+s.k+'</span>'+esc(s.t)+'</div>').join('');
+  box.style.display='block';
+}
+function pick(i){ const s=suggItems[i]; if(!s) return; $('search').value=s.t; suggItems=[]; renderSugg(); $('search').blur(); s.act(); }
+
+/* ---------- tooltips ---------- */
+function facHtml(p){
+  const kinds={hosp:'Hospital',health:'Centro de salud',emergency:'Bomberos / Defensa Civil',police:'Policía',school:'Colegio'};
+  return '<b>'+esc(p.facility_name||'Sin nombre')+'</b><br>'+kinds[p.kind]+(p.facility_subtype?' · '+esc(p.facility_subtype):'')+
+    (p.care_level!=null?'<br>Nivel de atención '+p.care_level:'')+(p.enrollment_count!=null?'<br>Matrícula: '+fmt(p.enrollment_count):'');
+}
+
+/* ---------- export ---------- */
+function exportCsv(){
+  const cols=['building_id','commune_name','neighborhood_name','structural_status','aftershock_priority_code','has_aggravating_factor','floor_count','area_m2','built_area_m2','seismic_zone_name','etc_sm_g','etc_tc_s','is_liquefaction_susceptible','requires_site_study','nearest_hospital_name','nearest_hospital_m','nearest_emergency_name','nearest_emergency_m','nearest_open_space_m','open_space_count_500m','lon','lat'];
+  const q=v=>{ if(v==null) return ''; const s=String(v); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const rows=filtered.map(p=>cols.map(c=>c==='lon'?p.c&&p.c[0].toFixed(6):c==='lat'?p.c&&p.c[1].toFixed(6):c==='area_m2'||c==='built_area_m2'?Math.round(p[c]):p[c]).map(q).join(','));
+  download(new Blob(['﻿'+cols.join(',')+'\n'+rows.join('\n')],{type:'text/csv;charset=utf-8'}),'edificios_filtrados_el_equipo.csv');
+}
+function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+function exportPng(){ map.once('render',composePng); map.triggerRepaint(); }
+function composePng(){
+  const mc=map.getCanvas(), W=mc.width, H=mc.height, k=W/mc.clientWidth;
+  const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d');
+  ctx.drawImage(mc,0,0,W,H); ctx.save(); ctx.scale(k,k);
+  const font='system-ui,"Segoe UI",Arial,sans-serif', w=mc.clientWidth, h=mc.clientHeight;
+  // marcadores HTML de microzonas
+  if($('lZones').checked){ ctx.font='600 11px '+font; ctx.textAlign='center'; ctx.textBaseline='middle';
+    zoneMarkers.forEach(m=>{ const pt=map.project(m.getLngLat()); if(pt.x<0||pt.y<0||pt.x>w||pt.y>h) return; const t=m.getElement().textContent, tw=ctx.measureText(t).width+12;
+      ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillRect(pt.x-tw/2,pt.y-9,tw,18); ctx.fillStyle='#23306b'; ctx.fillText(t,pt.x,pt.y); }); }
+  ctx.textAlign='left'; ctx.textBaseline='top';
+  const box=(x,y,bw,bh)=>{ctx.fillStyle='rgba(255,255,255,.94)';ctx.fillRect(x,y,bw,bh);};
+  const title='Sismo del 10 de agosto en Cali · '+$('colorMode').selectedOptions[0].text;
+  const sub=$('filterSummary').textContent;
+  ctx.font='700 15px '+font; const tw=Math.min(w-20,Math.max(ctx.measureText(title).width,300)+24);
+  box(10,10,tw,48); ctx.fillStyle='#1d2330'; ctx.fillText(title,22,18,tw-24);
+  ctx.font='11.5px '+font; ctx.fillStyle='#5b6475'; ctx.fillText(sub,22,38,tw-24);
+  // leyenda
+  const L=$('legend'), rows=[...L.querySelectorAll('.leg-row')];
+  let y=70; const lw=250; box(10,y,lw,26+rows.length*18+(L.querySelector('.ramp')?40:0)); y+=8;
+  ctx.font='700 12px '+font; ctx.fillStyle='#1d2330'; ctx.fillText(L.querySelector('.t').textContent,20,y); y+=18;
+  const ramp=L.querySelector('.ramp');
+  if(ramp && mode!=='status' && mode!=='priority'){ const r=RAMPS[mode], g=ctx.createLinearGradient(20,0,20+lw-20,0); r.colors.forEach((cl,i)=>g.addColorStop(i/(r.colors.length-1),cl)); ctx.fillStyle=g; ctx.fillRect(20,y,lw-20,10); y+=13; ctx.font='11px '+font; ctx.fillStyle='#5b6475'; ctx.fillText(r.fmt(r.stops[0]),20,y); ctx.textAlign='right'; ctx.fillText(r.fmt(r.stops[4]),lw,y); ctx.textAlign='left'; y+=18; }
+  ctx.font='12px '+font;
+  rows.forEach(rw=>{ const sw=rw.querySelector('.sw'); if(sw){ ctx.fillStyle=getComputedStyle(sw).backgroundColor; ctx.fillRect(20,y,12,12);} ctx.fillStyle='#1d2330'; const n=rw.querySelector('.n'); ctx.fillText(rw.childNodes[1]?rw.childNodes[1].textContent:rw.textContent,38,y,lw-90); if(n){ctx.textAlign='right';ctx.fillStyle='#5b6475';ctx.fillText(n.textContent,lw,y);ctx.textAlign='left';} y+=18; });
+  ctx.font='10.5px '+font; box(10,h-26,w-20,20); ctx.fillStyle='#5b6475'; ctx.fillText(document.querySelector('footer').textContent,18,h-21,w-36);
   ctx.restore();
-  c.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mapa_el_equipo.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); },'image/png');
+  c.toBlob(b=>download(b,'mapa_el_equipo.png'),'image/png');
+}
+
+/* ---------- estado en la URL (compartir una vista) ---------- */
+function writeHash(){
+  const diff={}; Object.keys(F).forEach(k=>{ if(JSON.stringify(F[k])!==JSON.stringify(DEF[k])) diff[k]=F[k]; });
+  if(mode!=='priority') diff.mode=mode; if(selectedId!=null) diff.sel=selectedId;
+  const h=Object.keys(diff).length?'#'+encodeURIComponent(JSON.stringify(diff)):' ';
+  history.replaceState(null,'',h===' '?location.pathname+location.search:h);
+}
+function readHash(){
+  if(!location.hash) return;
+  try{ const d=JSON.parse(decodeURIComponent(location.hash.slice(1)));
+    Object.keys(DEF).forEach(k=>{ if(d[k]!==undefined) F[k]=d[k]; });
+    if(d.mode && (RAMPS[d.mode]||d.mode==='status'||d.mode==='priority')) mode=d.mode;
+    if(d.sel!=null) selectedId=d.sel;
+  }catch(e){ console.warn('hash inválido'); }
 }
 
 /* ---------- init ---------- */
-function setHH(){ document.documentElement.style.setProperty('--hh', $('header').offsetHeight+'px'); }
-window.addEventListener('resize', setHH);
-
 (async function init(){
-  setHH();
-  try{ data = await load(); }
-  catch(e){
-    showMsg('No se encontraron los datos del mapa.<br><br>Ejecuta <code>scripts/download_map_data.sh</code> y recarga.<br><small>'+esc(e.message)+'</small>', true);
-    return;
-  }
-  prepare(); renderLegend();
-  const bb=bbox(data.buildings);
-  map = new maplibregl.Map({
-    container:'map', style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-    bounds:[[bb[0],bb[1]],[bb[2],bb[3]]], fitBoundsOptions:{padding:{top:40,bottom:50,left:40,right:40}},
-    preserveDrawingBuffer:true, attributionControl:{compact:true}
-  });
+  let d;
+  try{ d=await load(); }
+  catch(e){ showMsg('No se encontraron los datos del mapa.<br><br>Ejecuta <code>DATABRICKS_CONFIG_PROFILE=el-equipo bash scripts/download_map_data.sh</code> y recarga.<br><small>'+esc(e.message)+'</small>',true); return; }
+  prepare(d); readHash();
+  $('colorMode').value=mode;
+  chips($('fStatus'),STATUS,'status'); chips($('fPriority'),PRIORITY,'priority');
+  const all=B.filter(p=>p.c); let bb=[Infinity,Infinity,-Infinity,-Infinity];
+  all.forEach(p=>{bb[0]=Math.min(bb[0],p.c[0]);bb[1]=Math.min(bb[1],p.c[1]);bb[2]=Math.max(bb[2],p.c[0]);bb[3]=Math.max(bb[3],p.c[1]);});
+  map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    bounds:[[bb[0],bb[1]],[bb[2],bb[3]]],fitBoundsOptions:{padding:40},preserveDrawingBuffer:true,attributionControl:{compact:true}});
   map.addControl(new maplibregl.NavigationControl({showCompass:false}),'bottom-right');
-  overlay = new deck.MapboxOverlay({interleaved:true, layers:layers(), getTooltip:tooltip});
-  map.addControl(overlay);
-  map.on('load', ()=>{
-    $('msg').style.display='none';
-    // encuadre ajustado a los edificios, dejando libre el panel lateral
-    const panel = $('panel'), wide = window.innerWidth >= 700;
-    map.fitBounds([[bb[0],bb[1]],[bb[2],bb[3]]], {duration:0, padding:{
-      top: 20, bottom: 40, right: 20, left: wide && panel ? panel.offsetWidth + 30 : 20 }});
+  map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-right');
+  popup=new maplibregl.Popup({closeButton:false,closeOnClick:false,offset:8,maxWidth:'260px'});
+  map.on('error',ev=>console.warn(ev&&ev.error));
+  map.on('load',()=>{
+    addLayers(d); $('msg').style.display='none';
+    map.on('zoomend',applyVisibility);
+    update({fit:!isDefault()});
+    if(selectedId!=null && byId.has(selectedId)) select(selectedId,true);
+    // hover
+    const hoverB=e=>{ const f=e.features[0]; if(!f) return; const p=byId.get(f.id); if(!p) return; map.getCanvas().style.cursor='pointer';
+      const st=STATUS.find(s=>s.code===p.structural_status_code), pr=PRIORITY.find(s=>s.code===p.aftershock_priority_code);
+      popup.setLngLat(e.lngLat).setHTML('<b>#'+p.building_id+' · '+esc(p.neighborhood_name)+'</b><br>'+st.label+'<br>Prioridad: <b>'+pr.label+'</b> · '+esc(p.seismic_zone_name||'sin microzona')+'<br>Hospital: '+fmt(p.nearest_hospital_m)+' m · Pisos: '+(p.floor_count==null?'s/d':fmt(p.floor_count))+'<br><span style="color:#5b6475">Clic para ver detalle</span>').addTo(map); };
+    const leave=()=>{ map.getCanvas().style.cursor=''; popup.remove(); };
+    ['b-fill','bp'].forEach(l=>{ map.on('mousemove',l,hoverB); map.on('mouseleave',l,leave); map.on('click',l,e=>{ const f=e.features[0]; if(f){ popup.remove(); select(f.id); writeHash(); } }); });
+    ['f-hosp','f-health','f-emerg','f-police','f-school'].forEach(l=>{
+      map.on('mousemove',l,e=>{ map.getCanvas().style.cursor='pointer'; popup.setLngLat(e.features[0].geometry.coordinates).setHTML(facHtml(e.features[0].properties)).addTo(map); });
+      map.on('mouseleave',l,leave);
+    });
+    map.on('mousemove','open-fill',e=>{ if(map.queryRenderedFeatures(e.point,{layers:['b-fill','bp','f-hosp','f-emerg']}).length) return; const p=e.features[0].properties; popup.setLngLat(e.lngLat).setHTML('<b>'+esc(p.facility_name||'Espacio abierto')+'</b><br>'+esc(p.facility_subtype||'')+' · espacio de encuentro').addTo(map); });
+    map.on('mouseleave','open-fill',leave);
+    map.on('click','zones-fill',e=>{
+      if(map.queryRenderedFeatures(e.point,{layers:['b-fill','bp','f-hosp','f-health','f-emerg','f-police','f-school']}).length) return;
+      const p=e.features[0].properties;
+      new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML('<b>Microzona '+esc(p.seismic_zone_name)+'</b><br>Sa de diseño: '+(typeof p.etc_sm_g==='number'?dec(p.etc_sm_g,2)+' g':'estudio particular')+
+        '<br>Edificios del dataset: '+fmt(p.building_count)+(p.damaged_building_pct!=null&&p.damaged_building_pct!=='null'?'<br>Con daño visible: '+dec(+p.damaged_building_pct)+'%':'')+
+        (truthy(p.liq)?'<br>Suelo licuable':'')+(p.building_count>0?'<br><a href="#" id="zf">Filtrar esta microzona</a>':'')).addTo(map);
+      const a=document.getElementById('zf'); if(a) a.onclick=ev=>{ev.preventDefault();F.zone=p.seismic_zone_name;update({fit:true});};
+    });
   });
-  setTimeout(()=>{ $('msg').style.display='none'; }, 8000);
-  map.on('error', ev=>{ console.warn(ev && ev.error); });
 
-  $('colorMode').addEventListener('change', e=>{ state.mode=e.target.value; refresh(); });
-  [['l_zones','zones'],['l_open','open'],['l_health','health'],['l_emerg','emerg'],['l_school','school']].forEach(([id,k])=>{
-    $(id).addEventListener('change', e=>{ state.vis[k]=e.target.checked; refresh(); });
+  // eventos de controles
+  $('colorMode').addEventListener('change',e=>{ mode=e.target.value; map.setPaintProperty('b-fill','fill-color',colorExpr(mode)); map.setPaintProperty('bp','circle-color',colorExpr(mode)); renderLegend(); writeHash(); });
+  $('fCommune').addEventListener('change',e=>{ F.commune=e.target.value; if(F.hood && F.commune && !F.hood.endsWith(F.commune)) F.hood=''; update({fit:true}); });
+  $('fHood').addEventListener('change',e=>{ F.hood=e.target.value; if(F.hood) F.commune=F.hood.split(' · ')[1]; update({fit:true}); });
+  $('fZone').addEventListener('change',e=>{ F.zone=e.target.value; update({fit:true}); });
+  $('fFloors').addEventListener('change',e=>{ F.floors=e.target.value; update(); });
+  [['fAgg','agg'],['fLiq','liq'],['fSite','site']].forEach(([id,k])=>$(id).addEventListener('change',e=>{F[k]=e.target.checked;update();}));
+  [['fSa','sa'],['fHosp','hosp'],['fEmerg','emerg'],['fOpen','open']].forEach(([id,k])=>$(id).addEventListener('input',e=>{F[k]=+e.target.value;update();}));
+  ['lZones','lOpen','lHosp','lHealth','lEmerg','lPolice','lSchool'].forEach(id=>$(id).addEventListener('change',()=>{applyVisibility();renderLegend();}));
+  document.querySelectorAll('[data-clear]').forEach(b=>b.addEventListener('click',()=>{
+    const w=b.dataset.clear; if(w==='territory'){F.commune='';F.hood='';F.zone='';} else F[w]=[...DEF[w]]; update({fit:w==='territory'}); }));
+  $('btnReset').addEventListener('click',()=>{ F=JSON.parse(JSON.stringify(DEF)); select(null); $('search').value=''; update({fit:true}); });
+  $('btnFit').addEventListener('click',()=>fitTo(filtered));
+  $('btnCsv').addEventListener('click',exportCsv);
+  $('btnPng').addEventListener('click',exportPng);
+  $('groupSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; group=b.dataset.g; document.querySelectorAll('#groupSeg button').forEach(x=>x.classList.toggle('on',x===b)); renderTable(); });
+  $('groupTable').tHead.addEventListener('click',e=>{ const th=e.target.closest('th'); if(!th) return; const k=th.dataset.k; if(sortKey===k) sortDir=-sortDir; else { sortKey=k; sortDir=k==='name'?1:-1; } renderTable(); });
+  $('groupTable').tBodies[0].addEventListener('click',e=>{ const tr=e.target.closest('tr[data-v]'); if(!tr) return; const v=tr.dataset.v, G=GROUPS[group];
+    const cur=group==='hood'?F.hood:group==='commune'?F.commune:F.zone;
+    if(cur===v){ G.set(''); } else { G.set(v); if(group==='hood') F.commune=v.split(' · ')[1]; }
+    update({fit:true}); });
+  $('tabLeft').addEventListener('click',()=>{ $('left').classList.toggle('open'); $('right').classList.remove('open'); });
+  $('tabRight').addEventListener('click',()=>{ $('right').classList.toggle('open'); $('left').classList.remove('open'); });
+  // búsqueda
+  const s=$('search');
+  s.addEventListener('input',()=>{ suggItems=searchIndex(s.value); suggIdx=suggItems.length?0:-1; renderSugg(); });
+  s.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){ suggIdx=Math.min(suggItems.length-1,suggIdx+1); renderSugg(); e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ suggIdx=Math.max(0,suggIdx-1); renderSugg(); e.preventDefault(); }
+    else if(e.key==='Enter'){ pick(suggIdx<0?0:suggIdx); }
+    else if(e.key==='Escape'){ suggItems=[]; renderSugg(); }
   });
-  $('png').addEventListener('click', exportPng);
-  $('toggle').addEventListener('click', ()=>$('panel').classList.toggle('open'));
+  $('sugg').addEventListener('mousedown',e=>{ const dv=e.target.closest('[data-i]'); if(dv){ e.preventDefault(); pick(+dv.dataset.i); } });
+  s.addEventListener('blur',()=>setTimeout(()=>{suggItems=[];renderSugg();},150));
+  setTimeout(()=>{ if($('msg').style.display!=='none' && !$('msg').classList.contains('err')) $('msg').style.display='none'; },10000);
 })();
 })();
 </script>
